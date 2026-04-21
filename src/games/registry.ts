@@ -76,7 +76,8 @@ export const GAMES: GameEntry[] = [
     title: "Tap & Rotate",
     tagline: "Tap to shoot. Hold to rotate.",
     palette: { bg: "#0b0b1f", fg: "#ffffff", accent: "#ff3d68" },
-    status: "soon",
+    status: "ready",
+    load: () => import("./tap-rotate/index.js"),
   },
   {
     id: "merge-arena",

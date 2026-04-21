@@ -570,6 +570,48 @@ function bubbleShooterArt(id: string): string {
   return bubbles + "\n  " + trail + "\n  " + aimBubble + "\n  " + shooter;
 }
 
+function tapRotateArt(id: string): string {
+  // Background grid pulse lines
+  const gridLines: string[] = [];
+  for (let x2 = 0; x2 <= 160; x2 += 20)
+    gridLines.push(`<line x1="${x2}" y1="0" x2="${x2}" y2="100" stroke="#4444aa" stroke-opacity="0.15" stroke-width="0.5"/>`);
+  for (let y2 = 0; y2 <= 100; y2 += 20)
+    gridLines.push(`<line x1="0" y1="${y2}" x2="160" y2="${y2}" stroke="#4444aa" stroke-opacity="0.15" stroke-width="0.5"/>`);
+
+  // Arena border
+  const arena = `<rect x="28" y="8" width="104" height="84" rx="2" fill="none" stroke="#ff3d68" stroke-opacity="0.3" stroke-width="1"/>`;
+
+  // Player (center): blue circle + barrel pointing up
+  const player = `<g filter="url(#glow-${id})">
+    <circle cx="80" cy="50" r="9" fill="#1a3a8a" stroke="#4488ff" stroke-width="1.5"/>
+    <rect x="77" y="30" width="6" height="16" rx="2" fill="#88aaff"/>
+  </g>`;
+
+  // Targeting ring
+  const ring = `<circle cx="80" cy="50" r="24" fill="none" stroke="#ff3d68" stroke-opacity="0.5" stroke-width="1" stroke-dasharray="4 3"/>`;
+
+  // Rotating arrow (static at 45deg to suggest rotation)
+  const rotArrow = `<g transform="translate(80,50)">
+    <path d="M-30 0 A30 30 0 0 1 0 -30" fill="none" stroke="#ff3d68" stroke-width="2" stroke-opacity="0.7"/>
+    <polygon points="0,-26 4,-34 -4,-34" fill="#ff3d68" fill-opacity="0.9"/>
+  </g>`;
+
+  // Enemies: runner (circle, red, top-right), tank (square, purple, left), swifty (triangle, yellow, bottom-right)
+  const runner = `<circle cx="130" cy="22" r="8" fill="#ff3333" filter="url(#glow-${id})"/>`;
+  const tank = `<rect x="18" y="42" width="18" height="18" rx="1" fill="#9933cc" filter="url(#glow-${id})"/>`;
+  const swifty = `<polygon points="130,72 138,84 122,84" fill="#ffcc00" filter="url(#glow-${id})"/>`;
+
+  // Bullet trails
+  const bullets2 = [
+    `<circle cx="80" cy="20" r="3" fill="#ffffff" filter="url(#glow-${id})" fill-opacity="0.9"/>`,
+    `<circle cx="80" cy="14" r="2" fill="#ffffff" fill-opacity="0.4"/>`,
+    `<circle cx="110" cy="30" r="2.5" fill="#ffffff" fill-opacity="0.6"/>`,
+    `<circle cx="118" cy="24" r="1.5" fill="#ffffff" fill-opacity="0.3"/>`,
+  ].join("\n  ");
+
+  return gridLines.join("\n  ") + "\n  " + arena + "\n  " + ring + "\n  " + rotArrow + "\n  " + runner + "\n  " + tank + "\n  " + swifty + "\n  " + player + "\n  " + bullets2;
+}
+
 // ---------- title overlay (common) ----------
 
 function titleOverlay(title: string, fg: string): string {
@@ -600,6 +642,7 @@ function artBody(entry: GameEntry): string {
       case "15puzzle": return puzzle15Art(id);
       case "lights-out": return lightsOutArt(id);
       case "bubble-shooter": return bubbleShooterArt(id);
+      case "tap-rotate": return tapRotateArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
