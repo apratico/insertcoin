@@ -202,7 +202,7 @@ function drawPlayer(
   ctx.arc(cx, cy, PLAYER_RADIUS, 0, Math.PI * 2);
   ctx.fill();
 
-  // barrel
+  // barrel — aligned with heading (+X in rotated frame)
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(heading);
@@ -210,7 +210,7 @@ function drawPlayer(
   ctx.shadowColor = "#88aaff";
   ctx.fillStyle = "#88aaff";
   const bw = 6, bh = 18;
-  ctx.fillRect(-bw/2, -PLAYER_RADIUS - bh + 4, bw, bh);
+  ctx.fillRect(PLAYER_RADIUS - 4, -bw / 2, bh, bw);
   ctx.shadowBlur = 0;
   ctx.restore();
   ctx.restore();
