@@ -106,16 +106,6 @@ export const GAMES: GameEntry[] = [
     load: () => import("./tap-rotate/index.js"),
   },
   {
-    id: "merge-arena",
-    title: "Merge Arena",
-    tagline: "Fuse weapons. Auto-fire.",
-    palette: { bg: "#120826", fg: "#ffe066", accent: "#ff00aa" },
-    category: "solo",
-    modes: ["solo"],
-    status: "ready",
-    load: () => import("./merge-arena/index.js"),
-  },
-  {
     id: "color-match-shooter",
     title: "Hue Blaster",
     tagline: "Shoot same color.",
