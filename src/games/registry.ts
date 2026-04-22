@@ -55,7 +55,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#1a1a2e", fg: "#e0e0ff", accent: "#4fc3f7" },
     category: "solo",
     modes: ["solo"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./sudoku/index.js"),
   },
   {
     id: "memory",
