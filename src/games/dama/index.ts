@@ -609,18 +609,11 @@ function buildGame(
   let dismissHintFn: (() => void) | null = null;
 
   if (showHintFirst) {
-    phase = "hint";
-    dismissHintFn = showHint(container, () => {
-      phase = "playing";
-      dismissHintFn = null;
-    });
+    dismissHintFn = showHint(container, () => { dismissHintFn = null; });
 
-    const onFirstTap = (e: Event): void => {
-      const target = (e.target as HTMLElement).closest<HTMLElement>("[data-row]");
-      if (target && phase === "hint") {
-        boardEl.removeEventListener("pointerup", onFirstTap);
-        dismissHintFn?.();
-      }
+    const onFirstTap = (): void => {
+      boardEl.removeEventListener("pointerup", onFirstTap);
+      dismissHintFn?.();
     };
     boardEl.addEventListener("pointerup", onFirstTap);
   }
