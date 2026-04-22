@@ -122,7 +122,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#0a0a2a", fg: "#ffffff", accent: "#22ffaa" },
     category: "solo",
     modes: ["solo"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./color-match-shooter/index.js"),
   },
   {
     id: "one-bullet",

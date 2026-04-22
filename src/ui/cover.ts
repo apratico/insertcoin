@@ -756,6 +756,43 @@ function trisArt(id: string): string {
   return gridLines + "\n  " + x1 + "\n  " + o1 + "\n  " + x2 + "\n  " + o2 + "\n  " + winLine;
 }
 
+function colorMatchShooterArt(id: string): string {
+  // Dark grid
+  const gridLines: string[] = [];
+  for (let x2 = 0; x2 <= 160; x2 += 20)
+    gridLines.push(`<line x1="${x2}" y1="0" x2="${x2}" y2="100" stroke="#2222aa" stroke-opacity="0.15" stroke-width="0.5"/>`);
+  for (let y2 = 0; y2 <= 100; y2 += 20)
+    gridLines.push(`<line x1="0" y1="${y2}" x2="160" y2="${y2}" stroke="#2222aa" stroke-opacity="0.15" stroke-width="0.5"/>`);
+
+  // Descending enemies: circle (red), square (cyan), triangle (yellow)
+  const enemies3 = [
+    `<circle cx="36" cy="24" r="12" fill="#ff3333" filter="url(#glow-${id})"/>`,
+    `<rect x="70" y="14" width="24" height="24" rx="1" fill="#00eeff" filter="url(#glow-${id})"/>`,
+    `<polygon points="124,10 136,30 112,30" fill="#ffe600" filter="url(#glow-${id})"/>`,
+  ].join("\n  ");
+
+  // Player cannon at bottom-center
+  const player = `<g filter="url(#glow-${id})">
+    <circle cx="80" cy="86" r="8" fill="#0d0d2a" stroke="#00eeff" stroke-width="2"/>
+    <rect x="77" y="68" width="6" height="12" rx="2" fill="#00eeff"/>
+  </g>`;
+
+  // Cyan bullet going up toward cyan square (auto-aim feel)
+  const bullet = `<rect x="78" y="50" width="4" height="10" rx="2" fill="#00eeff" filter="url(#glow-${id})"/>`;
+
+  // Color bar buttons at the very bottom
+  const barBg = `<rect x="0" y="90" width="160" height="10" fill="rgba(0,0,0,0.5)"/>`;
+  const btnRed    = `<rect x="4"  y="91" width="44" height="8" rx="2" fill="#ff3333" filter="url(#glow-${id})"/>`;
+  const btnCyan   = `<rect x="58" y="91" width="44" height="8" rx="2" fill="#00eeff" filter="url(#glow-${id})"/>`;
+  const btnYellow = `<rect x="112" y="91" width="44" height="8" rx="2" fill="#ffe600" filter="url(#glow-${id})"/>`;
+
+  // Cyan button active glow ring
+  const activering = `<rect x="57" y="90" width="46" height="10" rx="3" fill="none" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.8"/>`;
+
+  return gridLines.join("\n  ") + "\n  " + enemies3 + "\n  " + bullet + "\n  " + player
+    + "\n  " + barBg + "\n  " + btnRed + "\n  " + btnCyan + "\n  " + btnYellow + "\n  " + activering;
+}
+
 function reactionDuelArt(id: string): string {
   // Split screen: top half red (P2 waiting), bottom half green (GO)
   const topHalf = `<rect x="0" y="0" width="160" height="48" fill="#aa2222"/>`;
@@ -825,6 +862,7 @@ function artBody(entry: GameEntry): string {
       case "bubble-shooter": return bubbleShooterArt(id);
       case "tap-rotate": return tapRotateArt(id);
       case "merge-arena": return mergeArenaArt(id);
+      case "color-match-shooter": return colorMatchShooterArt(id);
       case "tris": return trisArt(id);
       case "reaction-duel": return reactionDuelArt(id);
       case "connect4": return connect4Art(id);
