@@ -612,6 +612,65 @@ function tapRotateArt(id: string): string {
   return gridLines.join("\n  ") + "\n  " + arena + "\n  " + ring + "\n  " + rotArrow + "\n  " + runner + "\n  " + tank + "\n  " + swifty + "\n  " + player + "\n  " + bullets2;
 }
 
+function mergeArenaArt(id: string): string {
+  // Subtle grid
+  const gridLines: string[] = [];
+  for (let x2 = 0; x2 <= 160; x2 += 20)
+    gridLines.push(`<line x1="${x2}" y1="0" x2="${x2}" y2="100" stroke="#ff00aa" stroke-opacity="0.08" stroke-width="0.5"/>`);
+  for (let y2 = 0; y2 <= 100; y2 += 20)
+    gridLines.push(`<line x1="0" y1="${y2}" x2="160" y2="${y2}" stroke="#ff00aa" stroke-opacity="0.08" stroke-width="0.5"/>`);
+
+  // Turret tiles in a 3x2 grid at the bottom
+  const turretData: [number, string, string][] = [
+    [1, "#888888", ""],
+    [2, "#44aaff", ""],
+    [4, "#ffcc00", ""],
+    [3, "#22cc22", ""],
+    [5, "#ff6600", ""],
+    [6, "#ff2222", ""],
+  ];
+  const slotW = 28; const slotH = 18; const gapX = 6; const gapY = 5;
+  const startX = 16; const startY = 62;
+  const tiles = turretData.map(([lv, color], i) => {
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    const x = startX + col * (slotW + gapX);
+    const y = startY + row * (slotH + gapY);
+    return `<rect x="${x}" y="${y}" width="${slotW}" height="${slotH}" rx="3" fill="${color}" filter="url(#glow-${id})"/>
+  <text x="${x + slotW / 2}" y="${y + 12}" font-family="monospace" font-size="7" font-weight="bold" text-anchor="middle" fill="rgba(0,0,0,0.75)">LV${lv}</text>`;
+  }).join("\n  ");
+
+  // Merged big turret (LV10 / rainbow-ish) centre-right
+  const bigTurret = `<rect x="116" y="60" width="34" height="32" rx="5" fill="#ffff00" filter="url(#glow2-${id})"/>
+  <text x="133" y="80" font-family="monospace" font-size="9" font-weight="bold" text-anchor="middle" fill="rgba(0,0,0,0.8)">LV10</text>`;
+
+  // Enemies descending in combat zone
+  const enemies2 = [
+    `<circle cx="40" cy="18" r="8" fill="#ff4444" filter="url(#glow-${id})"/>`,
+    `<polygon points="80,10 87,22 73,22" fill="#ffcc00" filter="url(#glow-${id})"/>`,
+    `<rect x="108" y="14" width="16" height="16" rx="2" fill="#aa44ff" filter="url(#glow-${id})"/>`,
+    `<circle cx="140" cy="30" r="6" fill="#ff4444" filter="url(#glow-${id})"/>`,
+  ].join("\n  ");
+
+  // Bullet trails from turrets to enemies
+  const bulletTrails = [
+    `<line x1="29" y1="62" x2="40" y2="26" stroke="#ffe066" stroke-opacity="0.7" stroke-width="1.5" filter="url(#glow-${id})"/>`,
+    `<line x1="63" y1="62" x2="80" y2="22" stroke="#ffe066" stroke-opacity="0.7" stroke-width="1.5" filter="url(#glow-${id})"/>`,
+    `<line x1="133" y1="60" x2="116" y2="30" stroke="#ffe066" stroke-opacity="0.9" stroke-width="2" filter="url(#glow2-${id})"/>`,
+  ].join("\n  ");
+
+  // Slot borders
+  const slotBorders = Array.from({ length: 6 }, (_, i) => {
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    const x = startX + col * (slotW + gapX) - 1;
+    const y = startY + row * (slotH + gapY) - 1;
+    return `<rect x="${x}" y="${y}" width="${slotW + 2}" height="${slotH + 2}" rx="4" fill="none" stroke="#ff00aa" stroke-opacity="0.3" stroke-width="0.8"/>`;
+  }).join("\n  ");
+
+  return gridLines.join("\n  ") + "\n  " + enemies2 + "\n  " + bulletTrails + "\n  " + slotBorders + "\n  " + tiles + "\n  " + bigTurret;
+}
+
 function trisArt(id: string): string {
   // 3x3 grid lines
   const gridLines = [
@@ -718,6 +777,7 @@ function artBody(entry: GameEntry): string {
       case "lights-out": return lightsOutArt(id);
       case "bubble-shooter": return bubbleShooterArt(id);
       case "tap-rotate": return tapRotateArt(id);
+      case "merge-arena": return mergeArenaArt(id);
       case "tris": return trisArt(id);
       case "reaction-duel": return reactionDuelArt(id);
       default: return defaultArt(id, entry.palette.accent);

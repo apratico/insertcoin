@@ -112,7 +112,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#120826", fg: "#ffe066", accent: "#ff00aa" },
     category: "solo",
     modes: ["solo"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./merge-arena/index.js"),
   },
   {
     id: "color-match-shooter",
