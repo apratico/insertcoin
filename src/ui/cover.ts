@@ -671,6 +671,53 @@ function mergeArenaArt(id: string): string {
   return gridLines.join("\n  ") + "\n  " + enemies2 + "\n  " + bulletTrails + "\n  " + slotBorders + "\n  " + tiles + "\n  " + bigTurret;
 }
 
+function connect4Art(id: string): string {
+  // 7×6 mini board, accent #ffcc00, red #ff3333
+  const cols = 7;
+  const rows = 6;
+  const cellR = 8;
+  const gapX = 20;
+  const gapY = 14;
+  const ox = 11;
+  const oy = 5;
+
+  // Board background
+  const bg = `<rect x="${ox - 4}" y="${oy - 4}" width="${cols * gapX}" height="${rows * gapY + 4}" rx="5" fill="#0b2d4a"/>`;
+
+  // Discs layout (col,row) 0-indexed, row 0 = bottom, rendered top-to-bottom
+  const p1: [number, number][] = [[0,0],[1,0],[2,0],[3,0],[1,1],[2,2],[3,3]];
+  const p2: [number, number][] = [[0,1],[1,2],[2,1],[4,0],[5,0],[3,1]];
+  // winning diagonal ↗: col 0-3, row 0-3 → P1
+  const winCoords: [number, number][] = [[0,0],[1,1],[2,2],[3,3]];
+
+  const cells: string[] = [];
+  for (let r = rows - 1; r >= 0; r--) {
+    for (let c = 0; c < cols; c++) {
+      const cx = ox + c * gapX + cellR;
+      const cy = oy + (rows - 1 - r) * gapY + cellR;
+      const isP1 = p1.some(([pc, pr]) => pc === c && pr === r);
+      const isP2 = p2.some(([pc, pr]) => pc === c && pr === r);
+      const isWin = winCoords.some(([wc, wr]) => wc === c && wr === r);
+      let fill = "#0d2238";
+      let gfilter = "";
+      if (isP1) { fill = "#ffcc00"; gfilter = isWin ? ` filter="url(#glow2-${id})"` : ` filter="url(#glow-${id})"`; }
+      if (isP2) { fill = "#ff3333"; gfilter = ` filter="url(#glow-${id})"`; }
+      cells.push(`<circle cx="${cx}" cy="${cy}" r="${cellR - 1}" fill="${fill}"${gfilter}/>`);
+    }
+  }
+
+  // Win line across the 4 highlighted cells
+  const w0 = winCoords[0]!;
+  const w3 = winCoords[winCoords.length - 1]!;
+  const wx1 = ox + w0[0] * gapX + cellR;
+  const wy1 = oy + (rows - 1 - w0[1]) * gapY + cellR;
+  const wx2 = ox + w3[0] * gapX + cellR;
+  const wy2 = oy + (rows - 1 - w3[1]) * gapY + cellR;
+  const winLine = `<line x1="${wx1}" y1="${wy1}" x2="${wx2}" y2="${wy2}" stroke="#ffcc00" stroke-width="3" stroke-linecap="round" filter="url(#glow2-${id})" opacity="0.85"/>`;
+
+  return bg + "\n  " + cells.join("\n  ") + "\n  " + winLine;
+}
+
 function trisArt(id: string): string {
   // 3x3 grid lines
   const gridLines = [
@@ -780,6 +827,7 @@ function artBody(entry: GameEntry): string {
       case "merge-arena": return mergeArenaArt(id);
       case "tris": return trisArt(id);
       case "reaction-duel": return reactionDuelArt(id);
+      case "connect4": return connect4Art(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();

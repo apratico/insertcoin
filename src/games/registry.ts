@@ -172,7 +172,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#0a1a2a", fg: "#ffffff", accent: "#ffcc00" },
     category: "company",
     modes: ["local2p", "remote2p"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./connect4/index.js"),
   },
   {
     id: "reaction-duel",
