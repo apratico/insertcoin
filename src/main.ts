@@ -5,12 +5,14 @@ import { onRoute, start, navigate } from "./lib/router.js";
 import { getGame } from "./games/registry.js";
 import { mountMenu, unmountMenu } from "./ui/menu.js";
 import { mountScores, unmountScores } from "./ui/scores.js";
+import { joinLobby, leaveLobby } from "./lib/presence.js";
 
-// Open DB before anything else (Dexie lazily opens on first op, but explicit open
-// surfaces version errors early)
 await db.open();
 
 await initAuth();
+
+joinLobby();
+window.addEventListener("beforeunload", () => leaveLobby());
 
 const app = document.getElementById("app");
 if (!app) throw new Error("#app not found");

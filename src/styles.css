@@ -144,6 +144,29 @@ html, body {
   letter-spacing: 1px;
 }
 
+.online-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+.online-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #22dd66;
+  box-shadow: 0 0 6px #22dd66;
+  animation: online-pulse 2s ease-in-out infinite;
+}
+.online-val { color: #22dd66; font-weight: bold; }
+.online-label { opacity: 0.7; }
+@keyframes online-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
 /* ----- game grid ----- */
 .menu-main {
   flex: 1;

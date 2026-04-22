@@ -4,9 +4,11 @@ import { navigate } from "../lib/router.js";
 import { personalBest } from "../lib/leaderboard.js";
 import { renderCover } from "./cover.js";
 import { db } from "../lib/storage.js";
+import { subscribeOnline, getOnlineCount } from "../lib/presence.js";
 
 let root: HTMLElement | null = null;
 let unsubAuth: (() => void) | null = null;
+let unsubPresence: (() => void) | null = null;
 
 const TAB_KEY = "menu:tab";
 let activeTab: GameCategory = "solo";
@@ -129,6 +131,11 @@ async function render(): Promise<void> {
         </div>
         <div class="header-right">
           ${nicknameEditorHTML(profile.nickname)}
+          <div class="online-count" id="online-count" aria-label="Players online">
+            <span class="online-dot"></span>
+            <span class="online-val" id="online-val">${getOnlineCount()}</span>
+            <span class="online-label">online</span>
+          </div>
         </div>
       </header>
       ${tabsHTML()}
@@ -281,15 +288,21 @@ export function mountMenu(container: HTMLElement): void {
   void render();
 
   unsubAuth = subscribe(() => {
-    // Update nickname display without full re-render for responsiveness
     const nickVal = root?.querySelector<HTMLElement>("#nick-val");
     if (nickVal) nickVal.textContent = getProfile().nickname;
+  });
+
+  unsubPresence = subscribeOnline((n) => {
+    const el = root?.querySelector<HTMLElement>("#online-val");
+    if (el) el.textContent = String(n);
   });
 }
 
 export function unmountMenu(): void {
   unsubAuth?.();
   unsubAuth = null;
+  unsubPresence?.();
+  unsubPresence = null;
   if (root) root.innerHTML = "";
   root = null;
 }
