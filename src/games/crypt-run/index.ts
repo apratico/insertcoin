@@ -242,12 +242,12 @@ function spawnEnemyForChunk(chunk: Chunk, canvasH: number): void {
 
 let _cid = 0;
 
-function coinsFromTiles(chunk: Chunk): void {
+function coinsFromTiles(chunk: Chunk, groundY: number): void {
   for (let row = 0; row < CHUNK_ROWS; row++) {
     for (let cc = 0; cc < CHUNK_COLS; cc++) {
       if (chunk.tiles[row]![cc] === T_COIN) {
         const wx = (chunk.col + cc) * TILE + TILE / 2;
-        const wy = row * TILE + TILE / 2;
+        const wy = groundY + (row - CHUNK_ROWS + 1) * TILE + TILE / 2;
         chunk.coins.push({ id: _cid++, x: wx, y: wy, alive: true });
         chunk.tiles[row]![cc] = T_AIR;
       }
@@ -327,7 +327,7 @@ function resolvePlayerTiles(
         const t = chunk.tiles[row]![cc]!;
         if (t !== T_GROUND && t !== T_PLATFORM) continue;
         const tx = (chunk.col + cc) * TILE;
-        const ty = row * TILE;
+        const ty = groundY + (row - CHUNK_ROWS + 1) * TILE;
 
         if (!rectsOverlap(pr, { x: tx, y: ty, w: TILE, h: TILE })) continue;
 
@@ -420,16 +420,17 @@ function drawTiles(
   ctx: CanvasRenderingContext2D,
   chunks: Chunk[],
   worldX: number,
-  _ch: number
+  ch: number
 ): void {
   const screenOffX = worldX % TILE;
+  const groundY = ch - HUD_H;
   for (const chunk of chunks) {
     for (let row = 0; row < CHUNK_ROWS; row++) {
       for (let cc = 0; cc < CHUNK_COLS; cc++) {
         const t = chunk.tiles[row]![cc]!;
         if (t === T_AIR) continue;
         const wx = (chunk.col + cc) * TILE - worldX;
-        const wy = row * TILE;
+        const wy = groundY + (row - CHUNK_ROWS + 1) * TILE;
 
         if (wx + TILE < 0 || wx > 800) continue;
 
@@ -1082,9 +1083,9 @@ export function mount(container: HTMLElement): () => void {
       enemies: [],
       coins: [],
     };
-    coinsFromTiles(chunk);
+    const groundY = canvasH - HUD_H;
+    coinsFromTiles(chunk, groundY);
     if (nextChunkCol > CHUNK_COLS * 2) {
-      // Spawn enemy with ~70% probability per chunk
       if (Math.random() < 0.7) spawnEnemyForChunk(chunk, canvasH);
     }
     chunks.push(chunk);
@@ -1175,13 +1176,14 @@ export function mount(container: HTMLElement): () => void {
 
   function checkHazards(): void {
     const pr = playerRect(player);
+    const groundY = canvasH - HUD_H;
     // spikes
     for (const chunk of chunks) {
       for (let row = 0; row < CHUNK_ROWS; row++) {
         for (let cc = 0; cc < CHUNK_COLS; cc++) {
           if (chunk.tiles[row]![cc] !== T_SPIKE) continue;
           const tx = (chunk.col + cc) * TILE;
-          const ty = row * TILE;
+          const ty = groundY + (row - CHUNK_ROWS + 1) * TILE;
           if (rectsOverlap(pr, { x: tx + 4, y: ty + 4, w: TILE - 8, h: TILE - 4 })) {
             player.alive = false;
             return;
