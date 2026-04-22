@@ -150,6 +150,16 @@ export const GAMES: GameEntry[] = [
     status: "ready",
     load: () => import("./crypt-run/index.js"),
   },
+  {
+    id: "brick-buster",
+    title: "Brick Buster",
+    tagline: "Break all the bricks.",
+    palette: { bg: "#0a0a1a", fg: "#ffffff", accent: "#ff6600" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    load: () => import("./brick-buster/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

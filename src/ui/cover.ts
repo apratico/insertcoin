@@ -965,6 +965,7 @@ function artBody(entry: GameEntry): string {
       case "chain-blast": return chainBlastArt(id);
       case "crypt-run": return cryptRunArt(id);
       case "one-bullet": return oneBulletArt(id);
+      case "brick-buster": return brickBusterArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1150,6 +1151,51 @@ function oneBulletArt(id: string): string {
     bulletDot + "\n  " +
     cannon
   );
+}
+
+function brickBusterArt(id: string): string {
+  // Bricks: 6 rows × 8 cols in top portion of viewBox (160×100 play area)
+  const brickColors = ["#ff3333", "#ff8800", "#ffee00", "#22cc55", "#2277ff", "#aa33ff"];
+  const brickW = 17;
+  const brickH = 8;
+  const gapX = 2;
+  const gapY = 2;
+  const ox = 4;
+  const oy = 4;
+
+  const bricks: string[] = [];
+  for (let row = 0; row < 6; row++) {
+    const color = brickColors[row] ?? "#888";
+    for (let col = 0; col < 8; col++) {
+      const x = ox + col * (brickW + gapX);
+      const y = oy + row * (brickH + gapY);
+      bricks.push(
+        `<rect x="${x}" y="${y}" width="${brickW}" height="${brickH}" rx="1.5" fill="${color}" stroke="#000" stroke-width="0.4" filter="url(#glow-${id})"/>` +
+        `\n  <rect x="${x + 2}" y="${y + 1}" width="${brickW - 4}" height="2" fill="rgba(255,255,255,0.28)"/>`
+      );
+    }
+  }
+
+  // Ball trail
+  const trail = [
+    `<circle cx="62" cy="84" r="3" fill="#ffffff" fill-opacity="0.18"/>`,
+    `<circle cx="65" cy="79" r="4" fill="#ffffff" fill-opacity="0.35"/>`,
+    `<circle cx="69" cy="73" r="5.5" fill="#ffffff" fill-opacity="0.55" filter="url(#glow-${id})"/>`,
+  ].join("\n  ");
+
+  // Ball
+  const ball = `<circle cx="73" cy="67" r="7" fill="#ffffff" filter="url(#glow2-${id})"/>`;
+
+  // Paddle (orange gradient approximated with two rects + border)
+  const paddleX = 44;
+  const paddleY = 91;
+  const paddleW = 72;
+  const paddleH = 7;
+  const paddle = `<rect x="${paddleX}" y="${paddleY}" width="${paddleW}" height="${paddleH}" rx="3" fill="#ff6600" filter="url(#glow-${id})"/>
+  <rect x="${paddleX + 2}" y="${paddleY + 1}" width="${paddleW - 4}" height="2" fill="rgba(255,200,100,0.45)"/>
+  <rect x="${paddleX}" y="${paddleY}" width="${paddleW}" height="${paddleH}" rx="3" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="0.8"/>`;
+
+  return bricks.join("\n  ") + "\n  " + trail + "\n  " + ball + "\n  " + paddle;
 }
 
 function defaultArt(id: string, accent: string): string {
