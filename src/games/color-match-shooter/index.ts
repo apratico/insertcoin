@@ -22,6 +22,7 @@ interface Enemy {
 interface Bullet {
   x: number;
   y: number;
+  vx: number;
   vy: number;
   color: EnemyColor;
   alive: boolean;
@@ -70,7 +71,7 @@ function makeEnemy(): Enemy {
   return { x: 0, y: 0, vy: 0, color: "red", shape: "circle", alive: false, flashT: 0 };
 }
 function makeBullet(): Bullet {
-  return { x: 0, y: 0, vy: 0, color: "red", alive: false };
+  return { x: 0, y: 0, vx: 0, vy: 0, color: "red", alive: false };
 }
 function makeParticle(): Particle {
   return { x: 0, y: 0, vx: 0, vy: 0, life: 1, decay: 3.33, color: "#fff", alive: false };
@@ -767,6 +768,9 @@ export function mount(container: HTMLElement): () => void {
   let autoFireAccum = 0;
   let autoFireArmed = false;
   let lastFireT = 0;
+  let aimX = 0;
+  let aimY = 0;
+  let hasAim = false;
 
   let rafId = 0;
   let lastTime = 0;
@@ -854,30 +858,32 @@ export function mount(container: HTMLElement): () => void {
   function fireBullet(): void {
     if (phase !== "playing") return;
     const now = performance.now();
-    if (now - lastFireT < 80) return; // rate-limit tap spam
+    if (now - lastFireT < 80) return;
     lastFireT = now;
 
-    const target = findTarget(activeColor);
     const b = pool(bullets, makeBullet);
     b.x = playerX;
     b.y = playerY - 24;
     b.color = activeColor;
     b.alive = true;
 
-    if (target) {
-      const dx = target.x - b.x;
-      const dy = target.y - b.y;
-      const d = Math.sqrt(dx * dx + dy * dy) || 1;
-      // mix: 70% aim, 30% straight up — keeps it feeling responsive
-      b.vy = (dy / d) * BULLET_SPEED * 0.7 + (-BULLET_SPEED) * 0.3;
-      // we don't set vx in the spec — bullets are strictly vertical
-      // but auto-aim means we snap bullet x toward target
-      b.x = b.x + (dx / d) * Math.min(Math.abs(dx), 40);
+    let dx = 0;
+    let dy = -1;
+    if (hasAim) {
+      dx = aimX - b.x;
+      dy = aimY - b.y;
+      if (dy > -8) dy = -8;
     } else {
-      b.vy = -BULLET_SPEED;
+      const t = findTarget(activeColor);
+      if (t) {
+        dx = t.x - b.x;
+        dy = t.y - b.y;
+      }
     }
-    // Enforce: bullets travel upward only
-    if (b.vy > -BULLET_SPEED * 0.3) b.vy = -BULLET_SPEED;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    b.vx = (dx / d) * BULLET_SPEED;
+    b.vy = (dy / d) * BULLET_SPEED;
+    if (b.vy > -BULLET_SPEED * 0.3) b.vy = -BULLET_SPEED * 0.3;
 
     shots++;
     vibrate(4);
@@ -991,8 +997,9 @@ export function mount(container: HTMLElement): () => void {
   function updateBullets(dt: number): void {
     for (const b of bullets) {
       if (!b.alive) continue;
+      b.x += b.vx * dt;
       b.y += b.vy * dt;
-      if (b.y < -BULLET_H - 10) { b.alive = false; continue; }
+      if (b.y < -BULLET_H - 10 || b.x < -20 || b.x > cw + 20) { b.alive = false; continue; }
 
       for (const en of enemies) {
         if (!en.alive) continue;
@@ -1208,16 +1215,28 @@ export function mount(container: HTMLElement): () => void {
   }
 
   // ---------- input ----------
+  function updateAimFromPointer(e: PointerEvent): void {
+    const rect = canvas.getBoundingClientRect();
+    aimX = e.clientX - rect.left;
+    aimY = e.clientY - rect.top;
+    hasAim = true;
+  }
+
   function onPointerDown(e: PointerEvent): void {
     if (e.button !== 0 && e.pointerType === "mouse") return;
-    // Check if target is inside the canvas wrap (game area), not the color bar
     const target = e.target as HTMLElement;
     const isGameArea = canvasWrap.contains(target) || target === canvasWrap;
     pointerDown = true;
     pointerDownOnGame = isGameArea;
     autoFireAccum = 0;
     autoFireArmed = false;
+    if (isGameArea) updateAimFromPointer(e);
     dismissHint();
+  }
+
+  function onPointerMove(e: PointerEvent): void {
+    if (!pointerDown || !pointerDownOnGame) return;
+    updateAimFromPointer(e);
   }
 
   function onPointerUp(_e: PointerEvent): void {
@@ -1285,6 +1304,7 @@ export function mount(container: HTMLElement): () => void {
   // Attach input to the wrap (not just canvas) per contract rule 7
   const wrap = container.querySelector<HTMLElement>(".hb-wrap")!;
   wrap.addEventListener("pointerdown", onPointerDown);
+  wrap.addEventListener("pointermove", onPointerMove);
   wrap.addEventListener("pointerup", onPointerUp);
   wrap.addEventListener("pointercancel", onPointerCancel);
   canvasWrap.addEventListener("mousedown", onMouseDown);
@@ -1301,6 +1321,7 @@ export function mount(container: HTMLElement): () => void {
     cancelAnimationFrame(rafId);
     ro.disconnect();
     wrap.removeEventListener("pointerdown", onPointerDown);
+    wrap.removeEventListener("pointermove", onPointerMove);
     wrap.removeEventListener("pointerup", onPointerUp);
     wrap.removeEventListener("pointercancel", onPointerCancel);
     canvasWrap.removeEventListener("mousedown", onMouseDown);
