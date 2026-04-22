@@ -139,6 +139,16 @@ export const GAMES: GameEntry[] = [
     status: "ready",
     load: () => import("./chain-blast/index.js"),
   },
+  {
+    id: "crypt-run",
+    title: "Crypt Run",
+    tagline: "Corri, salta, massacra.",
+    palette: { bg: "#14041a", fg: "#ffffff", accent: "#ff5722" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    load: () => import("./crypt-run/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

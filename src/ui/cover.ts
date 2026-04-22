@@ -963,6 +963,7 @@ function artBody(entry: GameEntry): string {
       case "tap-race": return tapRaceArt(id);
       case "connect4": return connect4Art(id);
       case "chain-blast": return chainBlastArt(id);
+      case "crypt-run": return cryptRunArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1011,6 +1012,92 @@ function chainBlastArt(id: string): string {
   }
 
   return bg + "\n  " + chain.join("\n  ") + "\n  " + gloss.join("\n  ") + "\n  " + sparks.join("\n  ") + "\n  " + ring1 + "\n  " + ring2 + "\n  " + core;
+}
+
+function cryptRunArt(id: string): string {
+  // Night sky with stars
+  const stars: string[] = [];
+  for (let i = 0; i < 22; i++) {
+    const sx = ((i * 53 + 11) % 154) + 4;
+    const sy = ((i * 37 + 5) % 48) + 4;
+    const sr = i % 4 === 0 ? 1.2 : 0.6;
+    stars.push(`<circle cx="${sx}" cy="${sy}" r="${sr}" fill="#ffffff" fill-opacity="${0.4 + (i % 3) * 0.2}"/>`);
+  }
+
+  // Moon
+  const moon = `<circle cx="130" cy="14" r="9" fill="#e8d4b0" fill-opacity="0.9"/>
+  <circle cx="133" cy="12" r="7" fill="#14041a"/>`;
+
+  // Ground strip
+  const ground = `<rect x="0" y="70" width="160" height="30" fill="#1e0b28"/>
+  <rect x="0" y="70" width="160" height="3" fill="#2e1040"/>`;
+
+  // Headstones
+  const graves = [
+    `<rect x="18" y="58" width="12" height="14" rx="6" fill="#3a2048" stroke="#6030a0" stroke-width="0.8"/>
+  <rect x="21" y="68" width="6" height="5" fill="#3a2048"/>
+  <line x1="24" y1="60" x2="24" y2="68" stroke="#6030a0" stroke-width="0.7"/>
+  <line x1="20" y1="63" x2="28" y2="63" stroke="#6030a0" stroke-width="0.7"/>`,
+    `<rect x="55" y="55" width="14" height="16" rx="7" fill="#3a2048" stroke="#6030a0" stroke-width="0.8"/>
+  <rect x="58" y="67" width="8" height="6" fill="#3a2048"/>`,
+    `<rect x="126" y="60" width="11" height="13" rx="5" fill="#3a2048" stroke="#6030a0" stroke-width="0.8"/>
+  <rect x="129" y="70" width="5" height="4" fill="#3a2048"/>`,
+  ].join("\n  ");
+
+  // Silhouette castle towers in background
+  const castle = `<rect x="88" y="28" width="10" height="42" fill="#1a0828"/>
+  <rect x="85" y="22" width="4" height="8" fill="#1a0828"/>
+  <rect x="91" y="22" width="4" height="8" fill="#1a0828"/>
+  <rect x="97" y="22" width="4" height="8" fill="#1a0828"/>
+  <rect x="104" y="32" width="8" height="38" fill="#1a0828"/>
+  <rect x="102" y="26" width="3" height="8" fill="#1a0828"/>
+  <rect x="107" y="26" width="3" height="8" fill="#1a0828"/>`;
+
+  // Knight player — pixel style, jumping
+  const knightX = 46;
+  const knightY = 46;
+  const knight = `<g filter="url(#glow-${id})">
+    <rect x="${knightX - 5}" y="${knightY - 14}" width="10" height="8" rx="1" fill="#888aaa"/>
+    <rect x="${knightX - 3}" y="${knightY - 10}" width="6" height="3" fill="#222" fill-opacity="0.8"/>
+    <rect x="${knightX - 5}" y="${knightY - 6}" width="10" height="12" rx="1" fill="#4466aa"/>
+    <rect x="${knightX - 7}" y="${knightY - 4}" width="4" height="8" rx="1" fill="#3355aa"/>
+    <rect x="${knightX + 3}" y="${knightY - 4}" width="4" height="8" rx="1" fill="#3355aa"/>
+    <rect x="${knightX - 4}" y="${knightY + 6}" width="3" height="8" fill="#334466"/>
+    <rect x="${knightX + 1}" y="${knightY + 6}" width="3" height="8" fill="#334466"/>
+    <rect x="${knightX + 4}" y="${knightY - 6}" width="14" height="2" rx="1" fill="#ccddff"/>
+  </g>`;
+
+  // Bat
+  const batX = 76;
+  const batY = 32;
+  const bat = `<g filter="url(#glow-${id})">
+    <ellipse cx="${batX}" cy="${batY}" rx="4" ry="3.5" fill="#cc3300"/>
+    <path d="M${batX - 4} ${batY} Q${batX - 10} ${batY - 8} ${batX - 14} ${batY - 2} Q${batX - 10} ${batY - 1} ${batX - 4} ${batY}" fill="#aa2200"/>
+    <path d="M${batX + 4} ${batY} Q${batX + 10} ${batY - 8} ${batX + 14} ${batY - 2} Q${batX + 10} ${batY - 1} ${batX + 4} ${batY}" fill="#aa2200"/>
+    <circle cx="${batX - 2}" cy="${batY - 1}" r="1" fill="#ff3300"/>
+    <circle cx="${batX + 2}" cy="${batY - 1}" r="1" fill="#ff3300"/>
+  </g>`;
+
+  // Zombie approaching
+  const zombieX = 140;
+  const zombieY = 58;
+  const zombie = `<g filter="url(#glow-${id})">
+    <circle cx="${zombieX}" cy="${zombieY - 10}" r="5" fill="#55aa55"/>
+    <rect x="${zombieX - 4}" y="${zombieY - 5}" width="8" height="9" fill="#448844"/>
+    <rect x="${zombieX - 6}" y="${zombieY - 4}" width="3" height="6" fill="#448844"/>
+    <rect x="${zombieX + 3}" y="${zombieY - 3}" width="3" height="6" fill="#448844"/>
+    <rect x="${zombieX - 3}" y="${zombieY + 4}" width="2" height="7" fill="#336633"/>
+    <rect x="${zombieX + 1}" y="${zombieY + 4}" width="2" height="7" fill="#336633"/>
+  </g>`;
+
+  // Orange accent coins
+  const coins = [
+    `<circle cx="34" cy="45" r="3" fill="#ff5722" filter="url(#glow-${id})" fill-opacity="0.9"/>`,
+    `<circle cx="50" cy="38" r="3" fill="#ff5722" filter="url(#glow-${id})" fill-opacity="0.7"/>`,
+    `<circle cx="66" cy="42" r="3" fill="#ff5722" filter="url(#glow-${id})" fill-opacity="0.8"/>`,
+  ].join("\n  ");
+
+  return stars.join("\n  ") + "\n  " + moon + "\n  " + castle + "\n  " + ground + "\n  " + graves + "\n  " + bat + "\n  " + zombie + "\n  " + coins + "\n  " + knight;
 }
 
 function defaultArt(id: string, accent: string): string {
