@@ -828,6 +828,65 @@ function tapRaceArt(id: string): string {
     + countP1 + "\n  " + labelP1;
 }
 
+function damaArt(id: string): string {
+  const lightSq = "#e8c98a";
+  const darkSq  = "#6b3a1f";
+  const p1Fill  = "#f5e6c8";
+  const p2Fill  = "#4a2418";
+  const gold    = "#f5c518";
+
+  // 8x8 board, cell size ~11, origin 8,4
+  const cellW = 18;
+  const cellH = 11;
+  const ox = 8;
+  const oy = 4;
+
+  const cells: string[] = [];
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const x = ox + c * cellW;
+      const y = oy + r * cellH;
+      const dark = (r + c) % 2 === 1;
+      cells.push(`<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="${dark ? darkSq : lightSq}"/>`);
+    }
+  }
+
+  // pieces: P2 (dark) rows 0-2, P1 (light) rows 5-7, only playable (r+c odd)
+  const pieces: string[] = [];
+  function piece(r: number, c: number, player: 1 | 2, king: boolean): void {
+    if ((r + c) % 2 !== 1) return;
+    const cx = ox + c * cellW + cellW / 2;
+    const cy = oy + r * cellH + cellH / 2;
+    const rr = 4.2;
+    const fill   = player === 1 ? p1Fill : p2Fill;
+    const stroke = player === 1 ? "#3a2010" : p1Fill;
+    pieces.push(`<circle cx="${cx}" cy="${cy}" r="${rr}" fill="${fill}" stroke="${stroke}" stroke-width="0.8"${king ? ` filter="url(#glow-${id})"` : ""}/>`);
+    if (king) {
+      pieces.push(`<text x="${cx}" y="${cy + 2}" font-size="5" text-anchor="middle" fill="${gold}" font-weight="bold">♛</text>`);
+    }
+  }
+
+  // P2 pieces (top, dark)
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 8; c++) piece(r, c, 2, false);
+
+  // P1 pieces (bottom, light) — row 5 has a king
+  for (let r = 5; r < 8; r++)
+    for (let c = 0; c < 8; c++) piece(r, c, 1, r === 5 && c === 2);
+
+  // A selected piece glow: P1 at (5,4)
+  const selCx = ox + 4 * cellW + cellW / 2;
+  const selCy = oy + 5 * cellH + cellH / 2;
+  const selGlow = `<circle cx="${selCx}" cy="${selCy}" r="5.5" fill="none" stroke="${gold}" stroke-width="1.5" filter="url(#glow-${id})"/>`;
+
+  // A hint dot for valid move at (4,3)
+  const hintCx = ox + 3 * cellW + cellW / 2;
+  const hintCy = oy + 4 * cellH + cellH / 2;
+  const hintDot = `<circle cx="${hintCx}" cy="${hintCy}" r="2.5" fill="${gold}" fill-opacity="0.7"/>`;
+
+  return cells.join("\n  ") + "\n  " + pieces.join("\n  ") + "\n  " + selGlow + "\n  " + hintDot;
+}
+
 function reactionDuelArt(id: string): string {
   // Split screen: top half red (P2 waiting), bottom half green (GO)
   const topHalf = `<rect x="0" y="0" width="160" height="48" fill="#aa2222"/>`;
@@ -899,6 +958,7 @@ function artBody(entry: GameEntry): string {
       case "merge-arena": return mergeArenaArt(id);
       case "color-match-shooter": return colorMatchShooterArt(id);
       case "tris": return trisArt(id);
+      case "dama": return damaArt(id);
       case "reaction-duel": return reactionDuelArt(id);
       case "tap-race": return tapRaceArt(id);
       case "connect4": return connect4Art(id);

@@ -154,7 +154,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#1a0f08", fg: "#ffffff", accent: "#c08040" },
     category: "company",
     modes: ["local2p", "remote2p"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./dama/index.js"),
   },
   {
     id: "connect4",
