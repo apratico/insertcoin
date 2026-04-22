@@ -964,6 +964,7 @@ function artBody(entry: GameEntry): string {
       case "connect4": return connect4Art(id);
       case "chain-blast": return chainBlastArt(id);
       case "crypt-run": return cryptRunArt(id);
+      case "one-bullet": return oneBulletArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1098,6 +1099,57 @@ function cryptRunArt(id: string): string {
   ].join("\n  ");
 
   return stars.join("\n  ") + "\n  " + moon + "\n  " + castle + "\n  " + ground + "\n  " + graves + "\n  " + bat + "\n  " + zombie + "\n  " + coins + "\n  " + knight;
+}
+
+function oneBulletArt(id: string): string {
+  // Dark arena + zigzag bullet trail + targets
+  const bg = `<rect width="160" height="100" fill="#0a1210"/>`;
+
+  // Subtle grid
+  const grid: string[] = [];
+  for (let x = 0; x <= 160; x += 16)
+    grid.push(`<line x1="${x}" y1="0" x2="${x}" y2="100" stroke="#d9f8e4" stroke-opacity="0.04" stroke-width="0.5"/>`);
+  for (let y = 0; y <= 100; y += 16)
+    grid.push(`<line x1="0" y1="${y}" x2="160" y2="${y}" stroke="#d9f8e4" stroke-opacity="0.04" stroke-width="0.5"/>`);
+
+  // Wall obstacle
+  const wall = `<rect x="64" y="28" width="8" height="36" rx="1" fill="#1a3a5c"/>
+  <rect x="64" y="28" width="8" height="3" fill="rgba(100,180,255,0.25)"/>`;
+
+  // Zigzag bullet trail: cannon bottom-center → bounce on right wall → bounce on left wall → target
+  const trail = `<polyline points="80,90 120,38 40,22 90,14"
+    fill="none" stroke="#ffd166" stroke-width="1.5" stroke-dasharray="4 4"
+    stroke-opacity="0.7" filter="url(#glow-${id})"/>`;
+
+  // Bounce flash marks
+  const b1 = `<circle cx="120" cy="38" r="4" fill="#ffd166" fill-opacity="0.55" filter="url(#glow-${id})"/>`;
+  const b2 = `<circle cx="40"  cy="22" r="4" fill="#ffd166" fill-opacity="0.55" filter="url(#glow-${id})"/>`;
+
+  // Targets (green circles with glow)
+  const t1 = `<circle cx="90" cy="14" r="7" fill="#1a5c2a" stroke="#44ff88" stroke-width="1.5" filter="url(#glow-${id})"/>
+  <circle cx="90" cy="14" r="2.2" fill="#d9f8e4"/>`;
+  const t2 = `<circle cx="26" cy="50" r="7" fill="#1a5c2a" stroke="#44ff88" stroke-width="1.5" filter="url(#glow-${id})"/>
+  <circle cx="26" cy="50" r="2.2" fill="#d9f8e4"/>`;
+  const t3 = `<circle cx="140" cy="62" r="7" fill="#1a5c2a" stroke="#44ff88" stroke-width="1.5" filter="url(#glow-${id})"/>
+  <circle cx="140" cy="62" r="2.2" fill="#d9f8e4"/>`;
+
+  // Bullet head at start of trail
+  const bulletDot = `<circle cx="80" cy="90" r="4" fill="#ffffff" filter="url(#glow2-${id})"/>`;
+
+  // Cannon base
+  const cannon = `<rect x="76" y="84" width="14" height="5" rx="2" fill="#ffd166" filter="url(#glow-${id})"/>
+  <circle cx="80" cy="93" r="6" fill="#2a4a3a" stroke="#ffd166" stroke-width="1.5"/>`;
+
+  return (
+    bg + "\n  " +
+    grid.join("\n  ") + "\n  " +
+    wall + "\n  " +
+    trail + "\n  " +
+    b1 + "\n  " + b2 + "\n  " +
+    t1 + "\n  " + t2 + "\n  " + t3 + "\n  " +
+    bulletDot + "\n  " +
+    cannon
+  );
 }
 
 function defaultArt(id: string, accent: string): string {

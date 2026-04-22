@@ -127,7 +127,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#0a1210", fg: "#d9f8e4", accent: "#ffd166" },
     category: "solo",
     modes: ["solo"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./one-bullet/index.js"),
   },
   {
     id: "chain-blast",
