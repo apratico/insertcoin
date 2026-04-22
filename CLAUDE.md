@@ -25,6 +25,7 @@ The shell passes `container` = `.game-content` (has `flex:1; min-height:0; posit
    - `container.style.touchAction = "none"` on mount, restored on cleanup.
    - First-play onboarding hint (`<game>:seenHint` key in `settings` table). Auto-dismiss on first valid input / 5s timeout / tap. `pointer-events:none` so it never blocks gameplay.
 9. Leaderboard submit on gameover (and on win if it ends the run). Use `submit(gameId, score)` from `src/lib/leaderboard.ts`.
+10. Viewport is capped: `html`, `body`, `#app` all have `height: 100%` and `body { overflow: hidden }`. Do NOT use `min-height` on any ancestor of `.game-content`. Flex children share the viewport exactly — if a game's fixed-height sections (HUD, arsenal, buy bar) sum to more than viewport on small mobile, reduce them, don't let them overflow. Test layouts at 375×667 before declaring done.
 
 ### Copyright
 
