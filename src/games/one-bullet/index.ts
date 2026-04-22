@@ -196,9 +196,9 @@ const LEVELS: ReadonlyArray<Readonly<LevelDef>> = [
 // ---------- constants ----------
 
 const BULLET_SPEED   = 400;   // px/s
-const MAX_BOUNCES    = 6;
+const MAX_BOUNCES    = 12;
 const TRAIL_LEN      = 20;
-const PREVIEW_BOUNCES = 4;
+const PREVIEW_BOUNCES = 6;
 const TARGET_R       = 14;    // px (logical, before DPR)
 const CANNON_R       = 12;
 const DT_CAP         = 32;    // ms
