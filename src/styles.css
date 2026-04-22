@@ -783,6 +783,51 @@ canvas.game-canvas {
    CRT scan-line overlay (optional, add class .crt to #app)
    ===================================================================== */
 
+/* ----- update toast ----- */
+.update-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + var(--safe-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #141a24;
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 18px rgba(246, 194, 76, 0.35);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  z-index: 10000;
+  max-width: 92vw;
+}
+.update-toast-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: online-pulse 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.update-toast-msg { letter-spacing: 0.5px; }
+.update-toast-btn {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  font-weight: bold;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 32px;
+}
+.update-toast-btn:active { background: rgba(246, 194, 76, 0.12); }
+
 .crt::after {
   content: "";
   position: fixed;

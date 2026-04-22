@@ -6,11 +6,13 @@ import { getGame } from "./games/registry.js";
 import { mountMenu, unmountMenu } from "./ui/menu.js";
 import { mountScores, unmountScores } from "./ui/scores.js";
 import { joinLobby, leaveLobby } from "./lib/presence.js";
+import { setupAutoUpdate } from "./lib/update.js";
 
 await db.open();
 
 await initAuth();
 
+setupAutoUpdate();
 joinLobby();
 window.addEventListener("beforeunload", () => leaveLobby());
 
