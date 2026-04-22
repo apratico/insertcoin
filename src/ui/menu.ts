@@ -1,4 +1,4 @@
-import { GAMES } from "../games/registry.js";
+import { GAMES, type GameEntry, type GameMode } from "../games/registry.js";
 import { getProfile, setNickname, subscribe } from "../lib/auth.js";
 import { navigate } from "../lib/router.js";
 import { personalBest } from "../lib/leaderboard.js";
@@ -22,7 +22,47 @@ const TROPHY_SVG = `<svg class="tile-trophy-icon" viewBox="0 0 20 20" width="16"
   <path d="M6.5 3h7v5.5a3.5 3.5 0 01-7 0V3z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-async function buildGrid(): Promise<string> {
+const MODE_ICON: Record<GameMode, string> = {
+  solo: "👤",
+  local2p: "📱",
+  remote2p: "🌐",
+};
+
+function modeBadges(modes: GameMode[]): string {
+  if (modes.length <= 1) return "";
+  const icons = modes
+    .filter((m) => m !== "solo")
+    .map((m) => `<span class="tile-mode-badge" title="${m}">${MODE_ICON[m]}</span>`)
+    .join("");
+  return icons ? `<div class="tile-modes">${icons}</div>` : "";
+}
+
+function tileHTML(g: GameEntry, best: number | undefined): string {
+  const cover = renderCover(g);
+  const bestBadge = best !== undefined
+    ? `<div class="tile-best">BEST <span>${best}</span></div>`
+    : "";
+  const soonBadge = g.status === "soon"
+    ? `<div class="tile-soon-badge">SOON</div>`
+    : "";
+  const trophyBtn = g.status === "ready"
+    ? `<button class="tile-trophy-btn" data-scores-id="${g.id}" aria-label="View ${g.title} leaderboard">${TROPHY_SVG}</button>`
+    : "";
+
+  return `<article class="game-tile${g.status === "soon" ? " tile-soon" : ""}" data-id="${g.id}" data-status="${g.status}" role="button" tabindex="0" aria-label="${g.title}${g.status === "soon" ? " (coming soon)" : ""}">
+      <div class="tile-cover">${cover}</div>
+      ${soonBadge}
+      ${trophyBtn}
+      ${modeBadges(g.modes)}
+      <div class="tile-info">
+        <h3 class="tile-title">${g.title}</h3>
+        <p class="tile-tagline">${g.tagline}</p>
+        ${bestBadge}
+      </div>
+    </article>`;
+}
+
+async function buildSections(): Promise<string> {
   const readyGames = GAMES.filter((g) => g.status === "ready");
   const bestMap = new Map<string, number>();
   await Promise.all(readyGames.map(async (g) => {
@@ -30,36 +70,31 @@ async function buildGrid(): Promise<string> {
     if (b > 0) bestMap.set(g.id, b);
   }));
 
-  return GAMES.map((g) => {
-    const best = bestMap.get(g.id);
-    const cover = renderCover(g);
-    const bestBadge = best !== undefined
-      ? `<div class="tile-best">BEST <span>${best}</span></div>`
-      : "";
-    const soonBadge = g.status === "soon"
-      ? `<div class="tile-soon-badge">SOON</div>`
-      : "";
-    const trophyBtn = g.status === "ready"
-      ? `<button class="tile-trophy-btn" data-scores-id="${g.id}" aria-label="View ${g.title} leaderboard">${TROPHY_SVG}</button>`
-      : "";
+  const solo = GAMES.filter((g) => g.category === "solo");
+  const company = GAMES.filter((g) => g.category === "company");
 
-    return `<article class="game-tile${g.status === "soon" ? " tile-soon" : ""}" data-id="${g.id}" data-status="${g.status}" role="button" tabindex="0" aria-label="${g.title}${g.status === "soon" ? " (coming soon)" : ""}">
-      <div class="tile-cover">${cover}</div>
-      ${soonBadge}
-      ${trophyBtn}
-      <div class="tile-info">
-        <h3 class="tile-title">${g.title}</h3>
-        <p class="tile-tagline">${g.tagline}</p>
-        ${bestBadge}
-      </div>
-    </article>`;
-  }).join("\n");
+  function renderSection(label: string, subtitle: string, list: GameEntry[]): string {
+    if (list.length === 0) return "";
+    const tiles = list.map((g) => tileHTML(g, bestMap.get(g.id))).join("\n");
+    return `<section class="menu-section">
+      <header class="menu-section-head">
+        <h2 class="menu-section-title">${label}</h2>
+        <span class="menu-section-sub">${subtitle}</span>
+      </header>
+      <div class="game-grid-menu">${tiles}</div>
+    </section>`;
+  }
+
+  return [
+    renderSection("SOLITARI", "Gioca da solo", solo),
+    renderSection("COMPAGNIA", "2 giocatori · locale o online", company),
+  ].join("\n");
 }
 
 async function render(): Promise<void> {
   if (!root) return;
   const profile = getProfile();
-  const grid = await buildGrid();
+  const sections = await buildSections();
   const readyCount = GAMES.filter((g) => g.status === "ready").length;
   const totalCount = GAMES.length;
 
@@ -82,9 +117,7 @@ async function render(): Promise<void> {
         </div>
       </header>
       <main class="menu-main">
-        <div class="game-grid-menu" id="game-grid">
-          ${grid}
-        </div>
+        ${sections}
       </main>
     </div>
   `;
