@@ -65,7 +65,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#1b003b", fg: "#ffffff", accent: "#c084fc" },
     category: "solo",
     modes: ["solo"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./memory/index.js"),
   },
   {
     id: "bubble-shooter",
