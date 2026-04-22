@@ -74,7 +74,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#001133", fg: "#ffffff", accent: "#00ccff" },
     category: "solo",
     modes: ["solo"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./bubble-shooter/index.js"),
   },
   {
     id: "15puzzle",
@@ -83,7 +84,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#0f172a", fg: "#e2e8f0", accent: "#38bdf8" },
     category: "solo",
     modes: ["solo"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./15puzzle/index.js"),
   },
   {
     id: "flappy",
