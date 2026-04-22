@@ -14,18 +14,32 @@ const ROWS = 6;
 const BRICK_GAP = 2;
 
 const PADDLE_H = 12;
-const PADDLE_W = 80;
+const PADDLE_W_BASE = 80;
 const BALL_R = 7;
 const BASE_SPEED = 260;
 const SPEED_PER_LEVEL = 20;
 const SPEED_CAP = 420;
 const MAX_ANGLE_DEG = 60;
 const LIVES_INIT = 3;
+const LIVES_MAX = 5;
 const HUD_H = 44;
 const TRAIL_LEN = 6;
 const LIFE_LOST_MS = 1000;
 const LEVEL_CLEAR_MS = 1500;
 const PARTICLES_PER_BREAK = 8;
+
+// power-up constants
+const PU_DROP_CHANCE = 0.12;
+const PU_SIZE = 16;
+const PU_SPEED_Y = 120; // px/s downward
+const PU_WIDE_DURATION = 15000;
+const PU_LASER_DURATION = 12000;
+const PU_SLOW_DURATION = 10000;
+const PU_SLOW_FACTOR = 0.6;
+const PU_WIDE_FACTOR = 1.8;
+const LASER_FIRE_INTERVAL = 250; // ms between auto-shots
+const LASER_BULLET_SPEED = -540; // px/s upward
+const MAX_BALLS = 5;
 
 // brick row colours (6 rows, repeating)
 const ROW_COLORS = ["#ff3333", "#ff8800", "#ffee00", "#22cc55", "#2277ff", "#aa33ff"];
@@ -116,6 +130,21 @@ interface Particle {
   life: number; // 0-1, counts down
   color: string;
   r: number;
+}
+
+type PowerUpKind = "WIDE" | "MULTI" | "LASER" | "SLOW" | "LIFE";
+
+interface PowerUp {
+  x: number;
+  y: number;
+  kind: PowerUpKind;
+  alive: boolean;
+}
+
+interface LaserBullet {
+  x: number;
+  y: number;
+  alive: boolean;
 }
 
 type Phase = "playing" | "lifelost" | "levelclear" | "gameover" | "paused";
@@ -217,11 +246,12 @@ function launchBall(ball: BallState, level: number): void {
 function paddleBounce(
   ball: BallState,
   paddleCx: number,
+  paddleW: number,
   level: number
 ): void {
   const speed = ballSpeed(level);
   const hitX = ball.x - paddleCx;
-  const halfPaddle = PADDLE_W / 2;
+  const halfPaddle = paddleW / 2;
   const normalised = clamp(hitX / halfPaddle, -1, 1);
   const angleDeg = 90 + normalised * MAX_ANGLE_DEG; // 30–150 deg from +x axis
   const rad = degToRad(angleDeg);
@@ -258,6 +288,46 @@ function ballVsRect(
   }
   // vertical hit
   return prevBy < ry ? "top" : "bottom";
+}
+
+// ─── power-up helpers ─────────────────────────────────────────────────────────
+
+const PU_WEIGHTS: [PowerUpKind, number][] = [
+  ["WIDE", 25],
+  ["MULTI", 20],
+  ["LASER", 20],
+  ["SLOW", 20],
+  ["LIFE", 15],
+];
+const PU_TOTAL_WEIGHT = PU_WEIGHTS.reduce((s, [, w]) => s + w, 0);
+
+function randomPowerUpKind(): PowerUpKind {
+  let r = Math.random() * PU_TOTAL_WEIGHT;
+  for (const [kind, w] of PU_WEIGHTS) {
+    r -= w;
+    if (r <= 0) return kind;
+  }
+  return "WIDE";
+}
+
+function puColor(kind: PowerUpKind): string {
+  switch (kind) {
+    case "WIDE":  return "#00eeff";
+    case "MULTI": return "#ff00aa";
+    case "LASER": return "#ff3333";
+    case "SLOW":  return "#44ff66";
+    case "LIFE":  return "#ffcc00";
+  }
+}
+
+function puLabel(kind: PowerUpKind): string {
+  switch (kind) {
+    case "WIDE":  return "W";
+    case "MULTI": return "M";
+    case "LASER": return "L";
+    case "SLOW":  return "S";
+    case "LIFE":  return "+";
+  }
 }
 
 // ─── particles ───────────────────────────────────────────────────────────────
@@ -491,36 +561,68 @@ function drawPaddle(
   ctx: CanvasRenderingContext2D,
   px: number,
   py: number,
-  flashPaddle: number
+  paddleW: number,
+  flashPaddle: number,
+  laserActive: boolean,
+  laserFlash: number
 ): void {
-  const alpha = flashPaddle > 0 ? 1 : 1;
   const glow = flashPaddle > 0 ? 18 : 8;
   ctx.save();
-  ctx.shadowColor = "#ff6600";
+  ctx.shadowColor = laserActive ? "#ff3333" : "#ff6600";
   ctx.shadowBlur = glow;
-  const grad = ctx.createLinearGradient(px - PADDLE_W / 2, py, px - PADDLE_W / 2, py + PADDLE_H);
+  const grad = ctx.createLinearGradient(px - paddleW / 2, py, px - paddleW / 2, py + PADDLE_H);
   if (flashPaddle > 0) {
     grad.addColorStop(0, "#ffffff");
     grad.addColorStop(1, "#ffaa44");
+  } else if (laserActive) {
+    grad.addColorStop(0, "#ff6644");
+    grad.addColorStop(1, "#cc2200");
   } else {
     grad.addColorStop(0, "#ff8800");
     grad.addColorStop(1, "#cc4400");
   }
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.roundRect(px - PADDLE_W / 2, py, PADDLE_W, PADDLE_H, 4);
+  ctx.roundRect(px - paddleW / 2, py, paddleW, PADDLE_H, 4);
   ctx.fill();
   ctx.strokeStyle = "rgba(255,255,255,0.5)";
   ctx.lineWidth = 1;
   ctx.stroke();
+
+  // laser cannons on paddle edges
+  if (laserActive) {
+    const muzzleColor = laserFlash > 0 ? "#ffff44" : "#ff8833";
+    ctx.shadowColor = muzzleColor;
+    ctx.shadowBlur = laserFlash > 0 ? 14 : 6;
+
+    // left cannon — small upward triangle
+    const lx = px - paddleW / 2 + 4;
+    ctx.fillStyle = muzzleColor;
+    ctx.beginPath();
+    ctx.moveTo(lx, py);
+    ctx.lineTo(lx - 3, py + 6);
+    ctx.lineTo(lx + 3, py + 6);
+    ctx.closePath();
+    ctx.fill();
+
+    // right cannon
+    const rx2 = px + paddleW / 2 - 4;
+    ctx.beginPath();
+    ctx.moveTo(rx2, py);
+    ctx.lineTo(rx2 - 3, py + 6);
+    ctx.lineTo(rx2 + 3, py + 6);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   ctx.restore();
-  void alpha;
 }
 
 function drawBall(
   ctx: CanvasRenderingContext2D,
   ball: BallState,
-  trail: TrailPt[]
+  trail: TrailPt[],
+  slowActive: boolean
 ): void {
   // trail
   for (let i = 0; i < trail.length; i++) {
@@ -529,16 +631,19 @@ function drawBall(
     const r = BALL_R * (0.4 + alphaRatio * 0.6);
     ctx.beginPath();
     ctx.arc(t.x, t.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255,255,255,${(alphaRatio * 0.4).toFixed(2)})`;
+    ctx.fillStyle = slowActive
+      ? `rgba(100,255,130,${(alphaRatio * 0.4).toFixed(2)})`
+      : `rgba(255,255,255,${(alphaRatio * 0.4).toFixed(2)})`;
     ctx.fill();
   }
   // main ball
   ctx.save();
-  ctx.shadowColor = "#ffffff";
+  const ballColor = slowActive ? "#88ffaa" : "#ffffff";
+  ctx.shadowColor = ballColor;
   ctx.shadowBlur = 10;
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = ballColor;
   ctx.fill();
   ctx.restore();
 }
@@ -572,6 +677,158 @@ function drawOverlayText(
   ctx.shadowBlur = 16;
   ctx.fillText(text, w / 2, h / 2);
   ctx.restore();
+}
+
+function drawPowerUps(
+  ctx: CanvasRenderingContext2D,
+  powerups: PowerUp[],
+  now: number
+): void {
+  for (const pu of powerups) {
+    if (!pu.alive) continue;
+    const color = puColor(pu.kind);
+    const label = puLabel(pu.kind);
+    const pulse = 6 + 4 * Math.sin(now * 0.006);
+
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = pulse;
+
+    // gradient fill
+    const half = PU_SIZE / 2;
+    const grad = ctx.createLinearGradient(pu.x - half, pu.y - half, pu.x - half, pu.y + half);
+    grad.addColorStop(0, lightenColor(color, 0.4));
+    grad.addColorStop(1, color);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(pu.x - half, pu.y - half, PU_SIZE, PU_SIZE, 4);
+    ctx.fill();
+
+    // border
+    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // letter
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold ${PU_SIZE - 4}px 'Press Start 2P', ui-monospace, monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, pu.x, pu.y + 1);
+
+    ctx.restore();
+  }
+}
+
+function drawLaserBullets(
+  ctx: CanvasRenderingContext2D,
+  bullets: LaserBullet[]
+): void {
+  ctx.save();
+  ctx.strokeStyle = "#ff6600";
+  ctx.shadowColor = "#ff4400";
+  ctx.shadowBlur = 6;
+  ctx.lineWidth = 2;
+  for (const b of bullets) {
+    if (!b.alive) continue;
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x, b.y + 8);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawPowerUpHud(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  activeTimers: ActivePowerUpTimers,
+  now: number
+): void {
+  // show active timed power-ups as small badges at top-centre
+  type Badge = { label: string; color: string; remaining: number; total: number };
+  const badges: Badge[] = [];
+
+  if (activeTimers.wideUntil > now) {
+    badges.push({ label: "W", color: "#00eeff", remaining: activeTimers.wideUntil - now, total: PU_WIDE_DURATION });
+  }
+  if (activeTimers.laserUntil > now) {
+    badges.push({ label: "L", color: "#ff3333", remaining: activeTimers.laserUntil - now, total: PU_LASER_DURATION });
+  }
+  if (activeTimers.slowUntil > now) {
+    badges.push({ label: "S", color: "#44ff66", remaining: activeTimers.slowUntil - now, total: PU_SLOW_DURATION });
+  }
+  if (activeTimers.multiActive) {
+    badges.push({ label: "M", color: "#ff00aa", remaining: 1, total: 1 });
+  }
+
+  if (badges.length === 0) return;
+
+  const badgeW = 22;
+  const badgeH = 18;
+  const gap = 4;
+  const totalW = badges.length * (badgeW + gap) - gap;
+  let bx = (w - totalW) / 2;
+  const by = 4;
+
+  ctx.save();
+  for (const badge of badges) {
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = badge.color;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, badgeW, badgeH, 3);
+    ctx.fill();
+
+    // timer bar (bottom strip)
+    const barW = (badge.remaining / badge.total) * (badgeW - 2);
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(bx + 1, by + badgeH - 4, badgeW - 2, 3);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(bx + 1, by + badgeH - 4, Math.max(0, barW), 3);
+
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#fff";
+    ctx.font = `bold 8px 'Press Start 2P', ui-monospace, monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(badge.label, bx + badgeW / 2, by + badgeH / 2 - 1);
+
+    bx += badgeW + gap;
+  }
+  ctx.restore();
+}
+
+// lighten a hex color by factor 0–1 (add white)
+function lightenColor(hex: string, factor: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const lr = Math.min(255, Math.round(r + (255 - r) * factor));
+  const lg = Math.min(255, Math.round(g + (255 - g) * factor));
+  const lb = Math.min(255, Math.round(b + (255 - b) * factor));
+  return `#${lr.toString(16).padStart(2, "0")}${lg.toString(16).padStart(2, "0")}${lb.toString(16).padStart(2, "0")}`;
+}
+
+// ─── active power-up timer state ──────────────────────────────────────────────
+
+interface ActivePowerUpTimers {
+  wideUntil: number;   // timestamp ms; 0 = inactive
+  laserUntil: number;
+  slowUntil: number;
+  multiActive: boolean;
+  // stored original speed components per ball to restore on slow expiry
+  originalSpeeds: Map<BallState, number>; // stores original |speed| per ball
+}
+
+function makeTimers(): ActivePowerUpTimers {
+  return {
+    wideUntil: 0,
+    laserUntil: 0,
+    slowUntil: 0,
+    multiActive: false,
+    originalSpeeds: new Map(),
+  };
 }
 
 // ─── mount ────────────────────────────────────────────────────────────────────
@@ -650,16 +907,32 @@ export function mount(container: HTMLElement): () => void {
 
   let paddleX = 0; // centre x
   let paddleY = 0;
+  let paddleW = PADDLE_W_BASE;
 
-  let ball: BallState = { x: 0, y: 0, vx: 0, vy: 0, attached: true };
-  let trail: TrailPt[] = [];
+  // balls array — replaces single ball; index 0 is always the "primary" ball
+  let balls: BallState[] = [];
+  // per-ball trails; parallel array indexed same as balls
+  let trails: TrailPt[][] = [];
+
   let particles: Particle[] = [];
   let bricks: Brick[] = [];
+  let powerups: PowerUp[] = [];
+  let laserBullets: LaserBullet[] = [];
 
   let flashPaddle = 0; // countdown frames
   let flashBricks: Set<number> = new Set();
   let phaseTimer = 0; // ms for lifelost / levelclear
   let gameoverEl: { el: HTMLElement; addRank: (r: RankInfo) => void } | null = null;
+
+  let timers: ActivePowerUpTimers = makeTimers();
+  let laserFireAccum = 0; // ms accumulator for laser auto-fire
+  let laserFlash = 0;     // frame countdown for muzzle flash
+
+  // ── helpers that depend on closure state ──
+
+  function primaryBall(): BallState | null {
+    return balls[0] ?? null;
+  }
 
   // HUD update helpers
   function updateHudScore(): void {
@@ -703,28 +976,40 @@ export function mount(container: HTMLElement): () => void {
 
   function onAfterResize(): void {
     if (!stateReady) return;
-    // reposition paddle and ball
+    // reposition paddle and primary ball
     paddleY = canvasH - 30;
     if (paddleX === 0) paddleX = canvasW / 2;
-    paddleX = clamp(paddleX, PADDLE_W / 2, canvasW - PADDLE_W / 2);
-    if (ball.attached) {
-      ball.x = paddleX;
-      ball.y = paddleY - BALL_R - 2;
+    paddleX = clamp(paddleX, paddleW / 2, canvasW - paddleW / 2);
+    const pb = primaryBall();
+    if (pb?.attached) {
+      pb.x = paddleX;
+      pb.y = paddleY - BALL_R - 2;
     }
     // rebuild bricks if size changed significantly
     bricks = buildBricks(level, canvasW, canvasH);
     drawFrame(0);
   }
 
+  function clearPowerUpState(): void {
+    powerups = [];
+    laserBullets = [];
+    laserFireAccum = 0;
+    laserFlash = 0;
+    timers = makeTimers();
+    paddleW = PADDLE_W_BASE;
+  }
+
   function startLevel(lv: number): void {
     level = lv;
     paddleX = canvasW / 2;
-    ball = initBall(paddleX, paddleY);
-    trail = [];
+    paddleW = PADDLE_W_BASE;
+    balls = [initBall(paddleX, paddleY)];
+    trails = [[]];
     bricks = buildBricks(level, canvasW, canvasH);
     particles = [];
     flashBricks = new Set();
     flashPaddle = 0;
+    clearPowerUpState();
     phase = "playing";
     updateHudLevel();
   }
@@ -739,12 +1024,14 @@ export function mount(container: HTMLElement): () => void {
     updateHudLevel();
     paddleX = canvasW / 2;
     paddleY = canvasH - 30;
-    ball = initBall(paddleX, paddleY);
-    trail = [];
+    paddleW = PADDLE_W_BASE;
+    balls = [initBall(paddleX, paddleY)];
+    trails = [[]];
     bricks = buildBricks(level, canvasW, canvasH);
     particles = [];
     flashBricks = new Set();
     flashPaddle = 0;
+    clearPowerUpState();
     phase = "playing";
     paused = false;
     lastTime = performance.now();
@@ -760,10 +1047,11 @@ export function mount(container: HTMLElement): () => void {
     if (!pointerDown) return;
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvasW / rect.width);
-    paddleX = clamp(x, PADDLE_W / 2, canvasW - PADDLE_W / 2);
-    if (ball.attached) {
-      ball.x = paddleX;
-      ball.y = paddleY - BALL_R - 2;
+    paddleX = clamp(x, paddleW / 2, canvasW - paddleW / 2);
+    const pb = primaryBall();
+    if (pb?.attached) {
+      pb.x = paddleX;
+      pb.y = paddleY - BALL_R - 2;
     }
   }
 
@@ -771,22 +1059,26 @@ export function mount(container: HTMLElement): () => void {
     pointerDown = true;
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvasW / rect.width);
-    paddleX = clamp(x, PADDLE_W / 2, canvasW - PADDLE_W / 2);
-    if (ball.attached) {
-      ball.x = paddleX;
+    paddleX = clamp(x, paddleW / 2, canvasW - paddleW / 2);
+    const pb = primaryBall();
+    if (pb?.attached) {
+      pb.x = paddleX;
     }
   }
 
   function handlePointerUp(): void {
     pointerDown = false;
     if (phase !== "playing" || paused) return;
-    if (ball.attached) {
+    const pb = primaryBall();
+    if (pb?.attached) {
       doLaunch();
     }
   }
 
   function doLaunch(): void {
-    launchBall(ball, level);
+    const pb = primaryBall();
+    if (!pb) return;
+    launchBall(pb, level);
     playSfx("shoot");
     if ("vibrate" in navigator) navigator.vibrate(4);
     if (hintEl) {
@@ -799,16 +1091,18 @@ export function mount(container: HTMLElement): () => void {
   function handleKeyDown(e: KeyboardEvent): void {
     if (e.key === " " || e.key === "Space") {
       e.preventDefault();
-      if (phase === "playing" && !paused && ball.attached) doLaunch();
-      if (phase === "playing" && !paused && !ball.attached) {/* space does nothing mid-play */}
+      const pb = primaryBall();
+      if (phase === "playing" && !paused && pb?.attached) doLaunch();
     }
     if (e.key === "ArrowLeft") {
-      paddleX = clamp(paddleX - 40, PADDLE_W / 2, canvasW - PADDLE_W / 2);
-      if (ball.attached) { ball.x = paddleX; ball.y = paddleY - BALL_R - 2; }
+      paddleX = clamp(paddleX - 40, paddleW / 2, canvasW - paddleW / 2);
+      const pb = primaryBall();
+      if (pb?.attached) { pb.x = paddleX; pb.y = paddleY - BALL_R - 2; }
     }
     if (e.key === "ArrowRight") {
-      paddleX = clamp(paddleX + 40, PADDLE_W / 2, canvasW - PADDLE_W / 2);
-      if (ball.attached) { ball.x = paddleX; ball.y = paddleY - BALL_R - 2; }
+      paddleX = clamp(paddleX + 40, paddleW / 2, canvasW - paddleW / 2);
+      const pb = primaryBall();
+      if (pb?.attached) { pb.x = paddleX; pb.y = paddleY - BALL_R - 2; }
     }
     if (e.key === "Escape" || e.key === "p" || e.key === "P") {
       togglePause();
@@ -842,21 +1136,117 @@ export function mount(container: HTMLElement): () => void {
     if (host?.requestFullscreen) void host.requestFullscreen();
   });
 
+  // ── power-up activation ──────────────────────────────────────────────────────
+
+  function activatePowerUp(kind: PowerUpKind): void {
+    const now = performance.now();
+
+    switch (kind) {
+      case "WIDE": {
+        // reset timer; only scale paddleW once if not already wide
+        const alreadyWide = timers.wideUntil > now;
+        timers.wideUntil = now + PU_WIDE_DURATION;
+        if (!alreadyWide) {
+          paddleW = clamp(PADDLE_W_BASE * PU_WIDE_FACTOR, PADDLE_W_BASE, canvasW - 8);
+          paddleX = clamp(paddleX, paddleW / 2, canvasW - paddleW / 2);
+        }
+        break;
+      }
+
+      case "MULTI": {
+        // spawn up to 2 extra balls if we have room
+        const launched = balls.filter((b) => !b.attached);
+        if (launched.length === 0) break; // no flying ball to clone from
+
+        const source = launched[0]!;
+        const count = Math.min(2, MAX_BALLS - balls.length);
+        for (let i = 0; i < count; i++) {
+          const spread = degToRad((i === 0 ? -25 : 25) + (Math.random() * 10 - 5));
+          const speed = Math.hypot(source.vx, source.vy);
+          const baseAngle = Math.atan2(source.vy, source.vx);
+          const newAngle = baseAngle + spread;
+          const nb: BallState = {
+            x: source.x,
+            y: source.y,
+            vx: Math.cos(newAngle) * speed,
+            vy: Math.sin(newAngle) * speed,
+            attached: false,
+          };
+          balls.push(nb);
+          trails.push([]);
+          // if slow is active, record original speed for new ball too
+          if (timers.slowUntil > now) {
+            timers.originalSpeeds.set(nb, speed / PU_SLOW_FACTOR);
+          }
+        }
+        timers.multiActive = true;
+        break;
+      }
+
+      case "LASER": {
+        timers.laserUntil = now + PU_LASER_DURATION;
+        break;
+      }
+
+      case "SLOW": {
+        const alreadySlow = timers.slowUntil > now;
+        timers.slowUntil = now + PU_SLOW_DURATION;
+        if (!alreadySlow) {
+          for (const b of balls) {
+            if (b.attached) continue;
+            const spd = Math.hypot(b.vx, b.vy);
+            timers.originalSpeeds.set(b, spd);
+            const factor = PU_SLOW_FACTOR / 1; // multiply velocity by ratio
+            b.vx *= PU_SLOW_FACTOR;
+            b.vy *= PU_SLOW_FACTOR;
+            void factor;
+          }
+        }
+        break;
+      }
+
+      case "LIFE": {
+        lives = Math.min(LIVES_MAX, lives + 1);
+        updateHudLives();
+        playSfx("levelup");
+        break;
+      }
+    }
+  }
+
+  function restoreWide(): void {
+    paddleW = PADDLE_W_BASE;
+    paddleX = clamp(paddleX, paddleW / 2, canvasW - paddleW / 2);
+  }
+
+  function restoreSlow(): void {
+    for (const b of balls) {
+      const orig = timers.originalSpeeds.get(b);
+      if (orig === undefined) continue;
+      const cur = Math.hypot(b.vx, b.vy);
+      if (cur < 0.001) continue;
+      const ratio = orig / cur;
+      b.vx *= ratio;
+      b.vy *= ratio;
+    }
+    timers.originalSpeeds.clear();
+  }
+
   // ── game loop ──
 
   function loop(now: number): void {
     if (paused) return;
     const dt = Math.min(now - lastTime, 32) / 1000;
     lastTime = now;
-    update(dt);
+    update(dt, now);
     drawFrame(dt);
     rafId = requestAnimationFrame(loop);
   }
 
-  function update(dt: number): void {
+  function update(dt: number, now: number): void {
     if (!stateReady) return;
 
-    // update particles always
+    // ── particles ──
     for (const p of particles) {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
@@ -865,11 +1255,12 @@ export function mount(container: HTMLElement): () => void {
     }
     particles = particles.filter((p) => p.life > 0);
 
-    // flash countdown
+    // ── flash countdown ──
     if (flashPaddle > 0) flashPaddle--;
+    if (laserFlash > 0) laserFlash--;
     if (flashBricks.size > 0) flashBricks = new Set(); // one-frame flash
 
-    // timer-based phases
+    // ── timer-based phases ──
     if (phase === "lifelost" || phase === "levelclear") {
       phaseTimer -= dt * 1000;
       if (phaseTimer <= 0) {
@@ -877,9 +1268,10 @@ export function mount(container: HTMLElement): () => void {
           if (lives <= 0) {
             doGameover();
           } else {
-            // reset ball on paddle, keep bricks
-            ball = initBall(paddleX, paddleY);
-            trail = [];
+            // reset to single ball on paddle, keep bricks
+            balls = [initBall(paddleX, paddleY)];
+            trails = [[]];
+            clearPowerUpState();
             phase = "playing";
           }
         } else {
@@ -893,82 +1285,221 @@ export function mount(container: HTMLElement): () => void {
 
     if (phase !== "playing") return;
 
-    // move ball
-    if (ball.attached) return;
-
-    const prevX = ball.x;
-    const prevY = ball.y;
-
-    ball.x += ball.vx * dt;
-    ball.y += ball.vy * dt;
-
-    // trail
-    trail.unshift({ x: prevX, y: prevY });
-    if (trail.length > TRAIL_LEN) trail.pop();
-
-    // wall collisions
-    if (ball.x - BALL_R < 0) {
-      ball.x = BALL_R;
-      ball.vx = Math.abs(ball.vx);
+    // ── power-up expiry ──
+    if (timers.wideUntil > 0 && now >= timers.wideUntil) {
+      timers.wideUntil = 0;
+      restoreWide();
     }
-    if (ball.x + BALL_R > canvasW) {
-      ball.x = canvasW - BALL_R;
-      ball.vx = -Math.abs(ball.vx);
+    if (timers.slowUntil > 0 && now >= timers.slowUntil) {
+      timers.slowUntil = 0;
+      restoreSlow();
     }
-    if (ball.y - BALL_R < 0) {
-      ball.y = BALL_R;
-      ball.vy = Math.abs(ball.vy);
+    if (timers.laserUntil > 0 && now >= timers.laserUntil) {
+      timers.laserUntil = 0;
+      laserBullets = [];
+      laserFireAccum = 0;
     }
 
-    // fallen below paddle
-    if (ball.y - BALL_R > canvasH) {
+    // ── laser auto-fire ──
+    if (timers.laserUntil > now) {
+      laserFireAccum += dt * 1000;
+      if (laserFireAccum >= LASER_FIRE_INTERVAL) {
+        laserFireAccum -= LASER_FIRE_INTERVAL;
+        // spawn two bullets at paddle left/right edges
+        const leftX = paddleX - paddleW / 2 + 4;
+        const rightX = paddleX + paddleW / 2 - 4;
+        laserBullets.push({ x: leftX, y: paddleY, alive: true });
+        laserBullets.push({ x: rightX, y: paddleY, alive: true });
+        laserFlash = 3;
+        // debounce: sfx only occasionally
+        if (Math.random() < 0.4) playSfx("shoot");
+      }
+    }
+
+    // ── laser bullet movement + brick collision ──
+    for (const bullet of laserBullets) {
+      if (!bullet.alive) continue;
+      bullet.y += LASER_BULLET_SPEED * dt;
+      if (bullet.y < 0) { bullet.alive = false; continue; }
+
+      for (const brick of bricks) {
+        if (!brick.alive) continue;
+        const r = brickRect(brick.col, brick.row, canvasW, canvasH);
+        if (
+          bullet.x >= r.x && bullet.x <= r.x + r.w &&
+          bullet.y >= r.y && bullet.y <= r.y + r.h
+        ) {
+          bullet.alive = false;
+          brick.hp--;
+          if (brick.hp <= 0) {
+            brick.alive = false;
+            score += 10;
+            const key = brick.row * COLS + brick.col;
+            flashBricks.add(key);
+            spawnParticles(particles, r.x + r.w / 2, r.y + r.h / 2, ROW_COLORS[brick.colorIdx] ?? "#fff");
+            maybeDrop(r.x + r.w / 2, r.y + r.h / 2);
+            playSfx("kill");
+            if ("vibrate" in navigator) navigator.vibrate(10);
+          } else {
+            const key = brick.row * COLS + brick.col;
+            flashBricks.add(key);
+            score += 5;
+          }
+          updateHudScore();
+          break;
+        }
+      }
+    }
+    laserBullets = laserBullets.filter((b) => b.alive);
+
+    // ── falling power-ups movement + paddle collision ──
+    for (const pu of powerups) {
+      if (!pu.alive) continue;
+      pu.y += PU_SPEED_Y * dt;
+      if (pu.y > canvasH + PU_SIZE) {
+        pu.alive = false;
+        continue;
+      }
+      // paddle collision (AABB with paddle rect)
+      const pLeft = paddleX - paddleW / 2;
+      if (
+        pu.x + PU_SIZE / 2 >= pLeft &&
+        pu.x - PU_SIZE / 2 <= pLeft + paddleW &&
+        pu.y + PU_SIZE / 2 >= paddleY &&
+        pu.y - PU_SIZE / 2 <= paddleY + PADDLE_H
+      ) {
+        pu.alive = false;
+        activatePowerUp(pu.kind);
+        spawnParticles(particles, pu.x, pu.y, puColor(pu.kind));
+        if (pu.kind !== "LIFE") playSfx("score");
+        if ("vibrate" in navigator) navigator.vibrate(10);
+      }
+    }
+    powerups = powerups.filter((p) => p.alive);
+
+    // ── balls ──
+    // if all balls are attached (should be only 1), nothing to move
+    const anyFlying = balls.some((b) => !b.attached);
+    if (!anyFlying) return;
+
+    const deadBallIndices: number[] = [];
+
+    for (let bi = 0; bi < balls.length; bi++) {
+      const ball = balls[bi]!;
+      const trail = trails[bi] ?? [];
+
+      if (ball.attached) continue;
+
+      const prevX = ball.x;
+      const prevY = ball.y;
+
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+
+      // trail update
+      trail.unshift({ x: prevX, y: prevY });
+      if (trail.length > TRAIL_LEN) trail.pop();
+
+      // wall collisions
+      if (ball.x - BALL_R < 0) {
+        ball.x = BALL_R;
+        ball.vx = Math.abs(ball.vx);
+      }
+      if (ball.x + BALL_R > canvasW) {
+        ball.x = canvasW - BALL_R;
+        ball.vx = -Math.abs(ball.vx);
+      }
+      if (ball.y - BALL_R < 0) {
+        ball.y = BALL_R;
+        ball.vy = Math.abs(ball.vy);
+      }
+
+      // fallen below paddle
+      if (ball.y - BALL_R > canvasH) {
+        deadBallIndices.push(bi);
+        continue;
+      }
+
+      // paddle collision
+      const pLeft = paddleX - paddleW / 2;
+      const side = ballVsRect(ball.x, ball.y, prevX, prevY, pLeft, paddleY, paddleW, PADDLE_H);
+      if (side !== null && ball.vy > 0) {
+        paddleBounce(ball, paddleX, paddleW, level);
+        flashPaddle = 4;
+        // restore slow speed after bounce (bounce resets speed to level default)
+        if (timers.slowUntil > now) {
+          ball.vx *= PU_SLOW_FACTOR;
+          ball.vy *= PU_SLOW_FACTOR;
+          timers.originalSpeeds.set(ball, ballSpeed(level));
+        }
+        if (bi === 0) {
+          playSfx("bounce");
+          if ("vibrate" in navigator) navigator.vibrate(4);
+        }
+      }
+
+      // brick collisions
+      for (const brick of bricks) {
+        if (!brick.alive) continue;
+        const r = brickRect(brick.col, brick.row, canvasW, canvasH);
+        const bs = ballVsRect(ball.x, ball.y, prevX, prevY, r.x, r.y, r.w, r.h);
+        if (bs === null) continue;
+
+        // reflect
+        if (bs === "top" || bs === "bottom") {
+          ball.vy = -ball.vy;
+          // re-apply slow factor after reflection
+          if (timers.slowUntil > now) {
+            const spd = Math.hypot(ball.vx, ball.vy);
+            const target = ballSpeed(level) * PU_SLOW_FACTOR;
+            if (Math.abs(spd - target) > 5) {
+              const ratio = target / Math.max(spd, 1);
+              ball.vx *= ratio;
+              ball.vy *= ratio;
+            }
+          }
+        } else {
+          ball.vx = -ball.vx;
+        }
+
+        brick.hp--;
+        if (brick.hp <= 0) {
+          brick.alive = false;
+          score += 10;
+          const key = brick.row * COLS + brick.col;
+          flashBricks.add(key);
+          spawnParticles(particles, r.x + r.w / 2, r.y + r.h / 2, ROW_COLORS[brick.colorIdx] ?? "#fff");
+          maybeDrop(r.x + r.w / 2, r.y + r.h / 2);
+          playSfx("kill");
+          if ("vibrate" in navigator) navigator.vibrate(10);
+        } else {
+          const key = brick.row * COLS + brick.col;
+          flashBricks.add(key);
+          score += 5;
+          playSfx("pop");
+          if ("vibrate" in navigator) navigator.vibrate(6);
+        }
+        updateHudScore();
+        break; // one brick per frame per ball
+      }
+    }
+
+    // remove dead balls
+    if (deadBallIndices.length > 0) {
+      // capture refs before filter so we can clean up the speed map
+      const deadRefs = deadBallIndices.map((i) => balls[i]).filter((b): b is BallState => b !== undefined);
+      const keepMask = balls.map((_, i) => !deadBallIndices.includes(i));
+      balls = balls.filter((_, i) => keepMask[i]);
+      trails = trails.filter((_, i) => keepMask[i]);
+      for (const deadBall of deadRefs) {
+        timers.originalSpeeds.delete(deadBall);
+      }
+    }
+
+    // if all balls gone → life lost
+    if (balls.length === 0) {
       triggerLifeLost();
       return;
-    }
-
-    // paddle collision
-    const pLeft = paddleX - PADDLE_W / 2;
-    const side = ballVsRect(ball.x, ball.y, prevX, prevY, pLeft, paddleY, PADDLE_W, PADDLE_H);
-    if (side !== null && ball.vy > 0) {
-      // only bounce when moving down (prevent sticky)
-      paddleBounce(ball, paddleX, level);
-      flashPaddle = 4;
-      playSfx("bounce");
-      if ("vibrate" in navigator) navigator.vibrate(4);
-    }
-
-    // brick collisions
-    for (const brick of bricks) {
-      if (!brick.alive) continue;
-      const r = brickRect(brick.col, brick.row, canvasW, canvasH);
-      const bs = ballVsRect(ball.x, ball.y, prevX, prevY, r.x, r.y, r.w, r.h);
-      if (bs === null) continue;
-
-      // reflect
-      if (bs === "top" || bs === "bottom") {
-        ball.vy = -ball.vy;
-      } else {
-        ball.vx = -ball.vx;
-      }
-
-      brick.hp--;
-      if (brick.hp <= 0) {
-        brick.alive = false;
-        score += 10;
-        const key = brick.row * COLS + brick.col;
-        flashBricks.add(key);
-        spawnParticles(particles, r.x + r.w / 2, r.y + r.h / 2, ROW_COLORS[brick.colorIdx] ?? "#fff");
-        playSfx("kill");
-        if ("vibrate" in navigator) navigator.vibrate(10);
-      } else {
-        const key = brick.row * COLS + brick.col;
-        flashBricks.add(key);
-        score += 5;
-        playSfx("pop");
-        if ("vibrate" in navigator) navigator.vibrate(6);
-      }
-      updateHudScore();
-      break; // one brick per frame
     }
 
     // check level clear
@@ -977,13 +1508,20 @@ export function mount(container: HTMLElement): () => void {
     }
   }
 
+  function maybeDrop(cx: number, cy: number): void {
+    if (Math.random() >= PU_DROP_CHANCE) return;
+    const kind = randomPowerUpKind();
+    powerups.push({ x: cx, y: cy, kind, alive: true });
+  }
+
   function triggerLifeLost(): void {
     lives--;
     updateHudLives();
+    timers.multiActive = false;
     phase = "lifelost";
     phaseTimer = LIFE_LOST_MS;
-    ball = initBall(paddleX, paddleY);
-    trail = [];
+    balls = [initBall(paddleX, paddleY)];
+    trails = [[]];
     playSfx("error");
     if ("vibrate" in navigator) navigator.vibrate([30, 60, 30]);
   }
@@ -1016,6 +1554,7 @@ export function mount(container: HTMLElement): () => void {
 
   function drawFrame(_dt: number): void {
     if (!stateReady) return;
+    const now = performance.now();
     ctx.clearRect(0, 0, canvasW, canvasH);
 
     drawBackground(ctx, canvasW, canvasH);
@@ -1027,14 +1566,29 @@ export function mount(container: HTMLElement): () => void {
       }
     }
 
-    // paddle
-    drawPaddle(ctx, paddleX, paddleY, flashPaddle);
+    // falling power-ups
+    drawPowerUps(ctx, powerups, now);
 
-    // ball
-    drawBall(ctx, ball, trail);
+    // paddle
+    const laserActive = timers.laserUntil > now;
+    drawPaddle(ctx, paddleX, paddleY, paddleW, flashPaddle, laserActive, laserFlash);
+
+    // laser bullets
+    drawLaserBullets(ctx, laserBullets);
+
+    // all balls
+    const slowActive = timers.slowUntil > now;
+    for (let bi = 0; bi < balls.length; bi++) {
+      const b = balls[bi]!;
+      const t = trails[bi] ?? [];
+      drawBall(ctx, b, t, slowActive);
+    }
 
     // particles
     drawParticles(ctx, particles);
+
+    // active power-up HUD badges
+    drawPowerUpHud(ctx, canvasW, timers, now);
 
     // phase overlays
     if (phase === "lifelost") {
@@ -1050,6 +1604,10 @@ export function mount(container: HTMLElement): () => void {
   const ro = new ResizeObserver(onResize);
   ro.observe(canvasWrap);
   onResize();
+
+  // initialise balls array with primary ball
+  balls = [initBall(paddleX, paddleY)];
+  trails = [[]];
 
   // start game loop
   lastTime = performance.now();
