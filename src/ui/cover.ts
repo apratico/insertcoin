@@ -650,6 +650,43 @@ function trisArt(id: string): string {
   return gridLines + "\n  " + x1 + "\n  " + o1 + "\n  " + x2 + "\n  " + o2 + "\n  " + winLine;
 }
 
+function reactionDuelArt(id: string): string {
+  // Split screen: top half red (P2 waiting), bottom half green (GO)
+  const topHalf = `<rect x="0" y="0" width="160" height="48" fill="#aa2222"/>`;
+  const botHalf = `<rect x="0" y="52" width="160" height="48" fill="#22aa22"/>`;
+  const divLine = `<rect x="0" y="48" width="160" height="4" fill="#111"/>`;
+
+  // VS label in divider
+  const vsText = `<text x="80" y="52.5" font-family="monospace" font-size="4" font-weight="bold"
+    fill="rgba(255,255,255,0.4)" text-anchor="middle" dominant-baseline="middle"
+    letter-spacing="2">VS</text>`;
+
+  // P2 tap circle (top, rotated — show as outline/waiting)
+  const circleP2 = `<circle cx="80" cy="24" r="14" fill="none" stroke="#ff8888" stroke-width="2.5"
+    filter="url(#glow-${id})" stroke-dasharray="5 3"/>
+  <text x="80" y="28" font-family="monospace" font-size="8" font-weight="bold"
+    fill="#ff8888" text-anchor="middle">WAIT</text>`;
+
+  // P1 tap circle (bottom, green/active)
+  const circleP1 = `<circle cx="80" cy="76" r="14" fill="#22aa22" stroke="#44ff66" stroke-width="2.5"
+    filter="url(#glow2-${id})"/>
+  <text x="80" y="80" font-family="monospace" font-size="8" font-weight="bold"
+    fill="#ffffff" text-anchor="middle">TAP!</text>`;
+
+  // Finger/tap ripple on P1 side
+  const ripple1 = `<circle cx="80" cy="76" r="20" fill="none" stroke="#44ff66" stroke-width="1"
+    stroke-opacity="0.4"/>`;
+  const ripple2 = `<circle cx="80" cy="76" r="26" fill="none" stroke="#44ff66" stroke-width="0.5"
+    stroke-opacity="0.2"/>`;
+
+  // Reaction time label suggestion bottom-right
+  const msLabel = `<text x="148" y="94" font-family="monospace" font-size="6"
+    fill="#44ff66" text-anchor="end" fill-opacity="0.8">142 ms</text>`;
+
+  return topHalf + "\n  " + botHalf + "\n  " + divLine + "\n  " + vsText + "\n  "
+    + circleP2 + "\n  " + circleP1 + "\n  " + ripple1 + "\n  " + ripple2 + "\n  " + msLabel;
+}
+
 // ---------- title overlay (common) ----------
 
 function titleOverlay(title: string, fg: string): string {
@@ -682,6 +719,7 @@ function artBody(entry: GameEntry): string {
       case "bubble-shooter": return bubbleShooterArt(id);
       case "tap-rotate": return tapRotateArt(id);
       case "tris": return trisArt(id);
+      case "reaction-duel": return reactionDuelArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();

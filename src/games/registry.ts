@@ -180,7 +180,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#0a0f0a", fg: "#ffffff", accent: "#44ff66" },
     category: "company",
     modes: ["local2p"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./reaction-duel/index.js"),
   },
   {
     id: "tap-race",
