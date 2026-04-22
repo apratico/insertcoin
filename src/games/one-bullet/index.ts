@@ -738,6 +738,7 @@ function buildHUD(
   scoreEl: HTMLElement;
   bestEl: HTMLElement;
   pauseBtn: HTMLElement;
+  prevBtn: HTMLElement;
   fsBtn: HTMLElement;
   retryBtn: HTMLElement;
   skipBtn: HTMLElement;
@@ -755,8 +756,9 @@ function buildHUD(
     </div>
     <div class="ob-hud-right">
       <button class="btn ob-btn" id="ob-fs"    aria-label="Fullscreen">⛶</button>
-      <button class="btn ob-btn" id="ob-skip"  aria-label="Skip level">⏭</button>
+      <button class="btn ob-btn" id="ob-prev"  aria-label="Previous level">⏮</button>
       <button class="btn ob-btn" id="ob-retry" aria-label="Retry">↺</button>
+      <button class="btn ob-btn" id="ob-skip"  aria-label="Skip level">⏭</button>
       <button class="btn ob-btn" id="ob-pause" aria-label="Pause">⏸</button>
     </div>
   `;
@@ -770,6 +772,7 @@ function buildHUD(
     fsBtn:    hud.querySelector("#ob-fs")     as HTMLElement,
     retryBtn: hud.querySelector("#ob-retry")  as HTMLElement,
     skipBtn:  hud.querySelector("#ob-skip")   as HTMLElement,
+    prevBtn:  hud.querySelector("#ob-prev")   as HTMLElement,
   };
 }
 
@@ -1060,6 +1063,13 @@ export function mount(container: HTMLElement): () => void {
 
     hudRefs.skipBtn.addEventListener("pointerup", () => {
       advanceLevel(0);
+    });
+
+    hudRefs.prevBtn.addEventListener("pointerup", () => {
+      if (currentLevel <= 1) return;
+      currentLevel -= 1;
+      void db.settings.put({ key: LEVEL_KEY, value: String(currentLevel) });
+      loadLevel(currentLevel);
     });
   }
 
