@@ -6,7 +6,7 @@ import { getGame } from "./games/registry.js";
 import { mountMenu, unmountMenu } from "./ui/menu.js";
 import { mountScores, unmountScores } from "./ui/scores.js";
 import { joinLobby, leaveLobby } from "./lib/presence.js";
-import { setupAutoUpdate } from "./lib/update.js";
+import { setupAutoUpdate, hardReset } from "./lib/update.js";
 
 await db.open();
 
@@ -15,6 +15,11 @@ await initAuth();
 setupAutoUpdate();
 joinLobby();
 window.addEventListener("beforeunload", () => leaveLobby());
+
+// Escape hatch for stale caches on mobile.
+// Visit /#reset or run window.hardReset() from console to fully clear SW + caches.
+(window as unknown as { hardReset: () => Promise<void> }).hardReset = hardReset;
+if (location.hash === "#reset") { void hardReset(); }
 
 const app = document.getElementById("app");
 if (!app) throw new Error("#app not found");
