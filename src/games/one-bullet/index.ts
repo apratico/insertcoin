@@ -440,47 +440,59 @@ function generateLevel(level: number): LevelDef {
     return x - Math.floor(x);
   }
 
-  const targetCount = Math.min(7, 3 + Math.floor((level - TOTAL_LEVELS) / 3));
-  const wallCount   = Math.min(5, Math.floor((level - TOTAL_LEVELS) / 2));
-  const hazardCount = Math.min(3, Math.floor((level - TOTAL_LEVELS - 3) / 2));
+  // Gentle scaling: start with few targets, grow slowly
+  const overLevel    = level - TOTAL_LEVELS;
+  const targetCount  = Math.min(6, 2 + Math.floor(overLevel / 4));
+  const wallCount    = Math.min(3, Math.floor(overLevel / 5));
+  const hazardCount  = Math.min(2, Math.floor((overLevel - 5) / 4));
 
+  const cannonX = 0.3 + rng(9999) * 0.4;
+  const cannonY = 0.88 + rng(9998) * 0.04;
+
+  // Place targets in the upper band, spaced so none sits behind a wall row
   const targets: Vec2[] = [];
+  const cols = Math.min(targetCount, 4);
   for (let i = 0; i < targetCount; i++) {
-    targets.push({
-      x: 0.1 + rng(i * 2)     * 0.8,
-      y: 0.08 + rng(i * 2 + 1) * 0.5,
-    });
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const baseX = 0.15 + (col + 0.5) * (0.7 / cols);
+    const baseY = 0.12 + row * 0.12;
+    const jitterX = (rng(i * 2) - 0.5) * 0.06;
+    const jitterY = (rng(i * 2 + 1) - 0.5) * 0.04;
+    targets.push({ x: clamp01(baseX + jitterX), y: clamp01(baseY + jitterY) });
   }
 
+  // Walls confined to mid-band so they create bounces without blocking cannon shots
   const walls: Wall[] = [];
   for (let i = 0; i < wallCount; i++) {
     const horiz = rng(100 + i) > 0.5;
-    walls.push({
-      x: 0.1 + rng(200 + i) * 0.7,
-      y: 0.25 + rng(300 + i) * 0.45,
-      w: horiz ? 0.15 + rng(400 + i) * 0.2 : 0.04 + rng(500 + i) * 0.04,
-      h: horiz ? 0.04 + rng(600 + i) * 0.02 : 0.12 + rng(700 + i) * 0.15,
-    });
+    const w: Wall = {
+      x: 0.15 + rng(200 + i) * 0.6,
+      y: 0.4 + rng(300 + i) * 0.2,
+      w: horiz ? 0.1 + rng(400 + i) * 0.15 : 0.04 + rng(500 + i) * 0.03,
+      h: horiz ? 0.04 + rng(600 + i) * 0.02 : 0.1 + rng(700 + i) * 0.1,
+    };
+    // reject if wall is right in front of cannon (straight up path blocked)
+    if (!(w.x <= cannonX && cannonX <= w.x + w.w && w.y > cannonY - 0.15)) {
+      walls.push(w);
+    }
   }
 
+  // Hazards far from cannon path
   const hazards: Hazard[] = [];
   for (let i = 0; i < hazardCount; i++) {
     hazards.push({
       x: 0.1 + rng(800 + i) * 0.7,
-      y: 0.55 + rng(900 + i) * 0.25,
-      w: 0.12 + rng(1000 + i) * 0.1,
-      h: 0.04,
+      y: 0.65 + rng(900 + i) * 0.15,
+      w: 0.08 + rng(1000 + i) * 0.06,
+      h: 0.03,
     });
   }
 
-  return {
-    cannonX: 0.3 + rng(9999) * 0.4,
-    cannonY: 0.88 + rng(9998) * 0.06,
-    targets,
-    walls,
-    hazards,
-  };
+  return { cannonX, cannonY, targets, walls, hazards };
 }
+
+function clamp01(v: number): number { return Math.max(0, Math.min(1, v)); }
 
 // ---------- canvas setup ----------
 
@@ -734,15 +746,15 @@ function buildHUD(
   hud.className = "ob-hud";
   hud.innerHTML = `
     <div class="ob-hud-left">
-      <span class="ob-label">LEVEL</span>
-      <span class="ob-val" id="ob-level">${levelNum} / ${TOTAL_LEVELS}+</span>
+      <span class="ob-label">LV</span>
+      <span class="ob-val" id="ob-level">${levelNum}</span>
     </div>
     <div class="ob-hud-center">
-      <span class="ob-label">SCORE</span><span class="ob-val" id="ob-score">${score}</span>
-      <span class="ob-label" style="margin-left:12px">BEST</span><span class="ob-val" id="ob-best">${best}</span>
+      <span class="ob-label">SC</span><span class="ob-val" id="ob-score">${score}</span>
+      <span class="ob-label" style="margin-left:6px">B</span><span class="ob-val" id="ob-best">${best}</span>
     </div>
     <div class="ob-hud-right">
-      <button class="btn ob-btn" id="ob-fs"   aria-label="Fullscreen">⛶</button>
+      <button class="btn ob-btn" id="ob-fs"    aria-label="Fullscreen">⛶</button>
       <button class="btn ob-btn" id="ob-skip"  aria-label="Skip level">⏭</button>
       <button class="btn ob-btn" id="ob-retry" aria-label="Retry">↺</button>
       <button class="btn ob-btn" id="ob-pause" aria-label="Pause">⏸</button>
@@ -839,15 +851,18 @@ function injectStyles(): void {
     }
     .ob-hud {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 6px 8px; gap: 8px;
-      font-family: monospace; font-size: 12px; color: #d9f8e4;
+      padding: 4px 6px; gap: 4px;
+      font-family: monospace; font-size: 11px; color: #d9f8e4;
       background: rgba(0,0,0,0.5); flex-shrink: 0;
+      flex-wrap: nowrap;
     }
-    .ob-hud-left, .ob-hud-center, .ob-hud-right { display: flex; align-items: center; gap: 4px; }
-    .ob-label { font-size: 9px; opacity: 0.6; letter-spacing: 1px; }
-    .ob-val   { font-size: 14px; font-weight: bold; min-width: 20px; }
-    .ob-btn   { min-width: 36px; min-height: 36px; font-size: 15px;
-                border-color: #d9f8e4; color: #d9f8e4; background: transparent; padding: 2px 6px; }
+    .ob-hud-left, .ob-hud-center, .ob-hud-right { display: flex; align-items: center; gap: 3px; }
+    .ob-hud-left, .ob-hud-center { min-width: 0; overflow: hidden; }
+    .ob-label { font-size: 8px; opacity: 0.6; letter-spacing: 1px; }
+    .ob-val   { font-size: 12px; font-weight: bold; min-width: 18px; white-space: nowrap; }
+    .ob-btn   { min-width: 30px; min-height: 32px; font-size: 14px;
+                border-color: #d9f8e4; color: #d9f8e4; background: transparent;
+                padding: 0 4px; flex-shrink: 0; }
     .ob-canvas-wrap {
       flex: 1; min-height: 0; position: relative; overflow: hidden;
     }
