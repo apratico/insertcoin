@@ -962,10 +962,55 @@ function artBody(entry: GameEntry): string {
       case "reaction-duel": return reactionDuelArt(id);
       case "tap-race": return tapRaceArt(id);
       case "connect4": return connect4Art(id);
+      case "chain-blast": return chainBlastArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
   return base + "\n  " + titleOverlay(title, fg);
+}
+
+function chainBlastArt(id: string): string {
+  // Floating bubbles + central explosion + ring + chain of exploded bubbles
+  // Use a dark rect + radial overlay for the background (gradient defined in extraDefs via grad-id)
+  const bg = `<rect width="160" height="100" fill="#160814"/>
+  <rect width="160" height="100" fill="url(#grad-${id})" fill-opacity="0.25"/>`;
+
+  // Central explosion ring
+  const ring1 = `<circle cx="80" cy="50" r="28" fill="none" stroke="#ff6600" stroke-width="2.5" stroke-opacity="0.9" filter="url(#glow2-${id})"/>`;
+  const ring2 = `<circle cx="80" cy="50" r="18" fill="none" stroke="#ffcc00" stroke-width="1.5" stroke-opacity="0.6" filter="url(#glow-${id})"/>`;
+  const core  = `<circle cx="80" cy="50" r="8" fill="#ffcc00" filter="url(#glow2-${id})"/>`;
+
+  // Chain of exploded bubbles radiating from center
+  const chain: string[] = [
+    `<circle cx="110" cy="38" r="11" fill="#ff3333" fill-opacity="0.85" filter="url(#glow-${id})"/>`,
+    `<circle cx="125" cy="24" r="9"  fill="#ff3333" fill-opacity="0.5"  filter="url(#glow-${id})"/>`,
+    `<circle cx="52"  cy="32" r="10" fill="#00e5ff" fill-opacity="0.85" filter="url(#glow-${id})"/>`,
+    `<circle cx="38"  cy="20" r="8"  fill="#00e5ff" fill-opacity="0.5"  filter="url(#glow-${id})"/>`,
+    `<circle cx="108" cy="68" r="10" fill="#ffee00" fill-opacity="0.85" filter="url(#glow-${id})"/>`,
+    `<circle cx="52"  cy="72" r="11" fill="#ff44ff" fill-opacity="0.85" filter="url(#glow-${id})"/>`,
+  ];
+
+  // Gloss on live bubbles
+  const gloss: string[] = [
+    `<circle cx="107" cy="35" r="3" fill="#ffffff" fill-opacity="0.3"/>`,
+    `<circle cx="50"  cy="29" r="2.5" fill="#ffffff" fill-opacity="0.3"/>`,
+    `<circle cx="106" cy="65" r="2.5" fill="#ffffff" fill-opacity="0.3"/>`,
+    `<circle cx="50"  cy="69" r="3" fill="#ffffff" fill-opacity="0.3"/>`,
+  ];
+
+  // Spark particles
+  const sparks: string[] = [];
+  const angles = [0, 45, 90, 135, 180, 225, 270, 315];
+  for (const a of angles) {
+    const rad = (a * Math.PI) / 180;
+    const x1 = (80 + Math.cos(rad) * 10).toFixed(1);
+    const y1 = (50 + Math.sin(rad) * 10).toFixed(1);
+    const x2 = (80 + Math.cos(rad) * 22).toFixed(1);
+    const y2 = (50 + Math.sin(rad) * 22).toFixed(1);
+    sparks.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ffcc00" stroke-width="1.5" stroke-opacity="0.7" filter="url(#glow-${id})"/>`);
+  }
+
+  return bg + "\n  " + chain.join("\n  ") + "\n  " + gloss.join("\n  ") + "\n  " + sparks.join("\n  ") + "\n  " + ring1 + "\n  " + ring2 + "\n  " + core;
 }
 
 function defaultArt(id: string, accent: string): string {

@@ -131,7 +131,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#160814", fg: "#ffffff", accent: "#ff6600" },
     category: "solo",
     modes: ["solo"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./chain-blast/index.js"),
   },
 
   // =========================================================
