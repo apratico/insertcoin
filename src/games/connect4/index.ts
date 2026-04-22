@@ -31,10 +31,6 @@ async function loadNames(): Promise<{ p1: string; p2: string }> {
   return { p1: "P1", p2: "P2" };
 }
 
-async function saveNames(p1: string, p2: string): Promise<void> {
-  await db.settings.put({ key: "connect4:names", value: JSON.stringify({ p1, p2 }) });
-}
-
 async function loadSeenHint(): Promise<boolean> {
   try {
     const row = await db.settings.get("connect4:seenHint");
@@ -123,49 +119,6 @@ function isBoardFull(board: Cell[][]): boolean {
     }
   }
   return true;
-}
-
-// ── Name dialog ──────────────────────────────────────────────────────────────
-
-function showNamesDialog(
-  container: HTMLElement,
-  defaults: { p1: string; p2: string },
-  onConfirm: (p1: string, p2: string) => void
-): void {
-  const overlay = document.createElement("div");
-  overlay.className = "c4-dialog-overlay";
-  overlay.innerHTML = `
-    <div class="c4-dialog">
-      <div class="c4-dialog-title">CHI GIOCA?</div>
-      <div class="c4-dialog-row">
-        <span class="c4-dialog-disc c4-disc-p1"></span>
-        <label class="c4-dialog-label">P1</label>
-        <input class="c4-dialog-input" id="c4-p1-input" maxlength="10"
-          placeholder="P1" value="${defaults.p1}" autocomplete="off" spellcheck="false"/>
-      </div>
-      <div class="c4-dialog-row">
-        <span class="c4-dialog-disc c4-disc-p2"></span>
-        <label class="c4-dialog-label">P2</label>
-        <input class="c4-dialog-input" id="c4-p2-input" maxlength="10"
-          placeholder="P2" value="${defaults.p2}" autocomplete="off" spellcheck="false"/>
-      </div>
-      <button class="btn primary c4-dialog-btn" id="c4-start-btn">INIZIA</button>
-    </div>
-  `;
-  container.appendChild(overlay);
-
-  const p1Input = overlay.querySelector<HTMLInputElement>("#c4-p1-input")!;
-  const p2Input = overlay.querySelector<HTMLInputElement>("#c4-p2-input")!;
-  const startBtn = overlay.querySelector<HTMLButtonElement>("#c4-start-btn")!;
-
-  p1Input.focus();
-
-  startBtn.addEventListener("pointerup", () => {
-    const p1 = p1Input.value.trim() || "P1";
-    const p2 = p2Input.value.trim() || "P2";
-    overlay.remove();
-    onConfirm(p1, p2);
-  });
 }
 
 // ── Onboarding hint ──────────────────────────────────────────────────────────
@@ -631,11 +584,7 @@ export function mount(container: HTMLElement): () => void {
   void (async () => {
     const names    = await loadNames();
     const seenHint = await loadSeenHint();
-
-    showNamesDialog(container, names, (p1, p2) => {
-      void saveNames(p1, p2);
-      cleanupGame = buildGame(container, p1, p2, !seenHint);
-    });
+    cleanupGame = buildGame(container, names.p1, names.p2, !seenHint);
   })();
 
   return function cleanup(): void {
