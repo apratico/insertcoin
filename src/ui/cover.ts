@@ -793,6 +793,41 @@ function colorMatchShooterArt(id: string): string {
     + "\n  " + barBg + "\n  " + btnRed + "\n  " + btnCyan + "\n  " + btnYellow + "\n  " + activering;
 }
 
+function tapRaceArt(id: string): string {
+  // Split screen: bottom green (GO), top purple (P2 rotated)
+  const topHalf = `<rect x="0" y="0" width="160" height="48" fill="#2a003a"/>`;
+  const botHalf = `<rect x="0" y="52" width="160" height="48" fill="#0a2a0a"/>`;
+  const divLine = `<rect x="0" y="48" width="160" height="4" fill="#111"/>`;
+
+  // Timer bar in divider
+  const timerBg = `<rect x="4" y="50" width="152" height="2" rx="1" fill="rgba(255,255,255,0.12)"/>`;
+  const timerFg = `<rect x="4" y="50" width="80" height="2" rx="1" fill="#ff44ff" filter="url(#glow-${id})"/>`;
+
+  // P2 (top) — tap count and label (would be rotated in game)
+  const countP2 = `<text x="80" y="35" font-family="monospace" font-size="26" font-weight="bold"
+    fill="#cc44cc" text-anchor="middle" filter="url(#glow-${id})">23</text>`;
+  const labelP2 = `<text x="80" y="14" font-family="monospace" font-size="7" font-weight="bold"
+    fill="#ff44ff" text-anchor="middle" letter-spacing="3" filter="url(#glow-${id})">TAP!</text>`;
+
+  // P1 (bottom) — higher tap count, winning
+  const countP1 = `<text x="80" y="87" font-family="monospace" font-size="26" font-weight="bold"
+    fill="#44ff66" text-anchor="middle" filter="url(#glow-${id})">31</text>`;
+  const labelP1 = `<text x="80" y="70" font-family="monospace" font-size="7" font-weight="bold"
+    fill="#44ff66" text-anchor="middle" letter-spacing="3" filter="url(#glow-${id})">TAP!</text>`;
+
+  // Finger ripple hints on each side
+  const rippleTop = `<circle cx="80" cy="24" r="16" fill="none" stroke="#ff44ff" stroke-width="1" stroke-opacity="0.3"/>
+  <circle cx="80" cy="24" r="22" fill="none" stroke="#ff44ff" stroke-width="0.5" stroke-opacity="0.15"/>`;
+  const rippleBot = `<circle cx="80" cy="76" r="16" fill="none" stroke="#44ff66" stroke-width="1" stroke-opacity="0.4"/>
+  <circle cx="80" cy="76" r="22" fill="none" stroke="#44ff66" stroke-width="0.5" stroke-opacity="0.2"/>`;
+
+  return topHalf + "\n  " + botHalf + "\n  " + divLine + "\n  "
+    + timerBg + "\n  " + timerFg + "\n  "
+    + rippleTop + "\n  " + rippleBot + "\n  "
+    + countP2 + "\n  " + labelP2 + "\n  "
+    + countP1 + "\n  " + labelP1;
+}
+
 function reactionDuelArt(id: string): string {
   // Split screen: top half red (P2 waiting), bottom half green (GO)
   const topHalf = `<rect x="0" y="0" width="160" height="48" fill="#aa2222"/>`;
@@ -865,6 +900,7 @@ function artBody(entry: GameEntry): string {
       case "color-match-shooter": return colorMatchShooterArt(id);
       case "tris": return trisArt(id);
       case "reaction-duel": return reactionDuelArt(id);
+      case "tap-race": return tapRaceArt(id);
       case "connect4": return connect4Art(id);
       default: return defaultArt(id, entry.palette.accent);
     }

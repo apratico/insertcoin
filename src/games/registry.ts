@@ -183,7 +183,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#1a001a", fg: "#ffffff", accent: "#ff44ff" },
     category: "company",
     modes: ["local2p", "remote2p"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./tap-race/index.js"),
   },
 ];
 
