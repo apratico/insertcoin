@@ -1,11 +1,15 @@
-import { GAMES, type GameEntry, type GameMode } from "../games/registry.js";
+import { GAMES, type GameEntry, type GameMode, type GameCategory } from "../games/registry.js";
 import { getProfile, setNickname, subscribe } from "../lib/auth.js";
 import { navigate } from "../lib/router.js";
 import { personalBest } from "../lib/leaderboard.js";
 import { renderCover } from "./cover.js";
+import { db } from "../lib/storage.js";
 
 let root: HTMLElement | null = null;
 let unsubAuth: (() => void) | null = null;
+
+const TAB_KEY = "menu:tab";
+let activeTab: GameCategory = "solo";
 
 // ---------- render ----------
 
@@ -62,41 +66,53 @@ function tileHTML(g: GameEntry, best: number | undefined): string {
     </article>`;
 }
 
-async function buildSections(): Promise<string> {
-  const readyGames = GAMES.filter((g) => g.status === "ready");
+async function buildGridFor(category: GameCategory): Promise<string> {
+  const readyGames = GAMES.filter((g) => g.status === "ready" && g.category === category);
   const bestMap = new Map<string, number>();
   await Promise.all(readyGames.map(async (g) => {
     const b = await personalBest(g.id);
     if (b > 0) bestMap.set(g.id, b);
   }));
+  const list = GAMES.filter((g) => g.category === category);
+  return list.map((g) => tileHTML(g, bestMap.get(g.id))).join("\n");
+}
 
-  const solo = GAMES.filter((g) => g.category === "solo");
-  const company = GAMES.filter((g) => g.category === "company");
+function tabsHTML(): string {
+  const soloReady = GAMES.filter((g) => g.category === "solo" && g.status === "ready").length;
+  const soloTotal = GAMES.filter((g) => g.category === "solo").length;
+  const coReady = GAMES.filter((g) => g.category === "company" && g.status === "ready").length;
+  const coTotal = GAMES.filter((g) => g.category === "company").length;
+  return `<nav class="menu-tabs" role="tablist">
+    <button class="menu-tab${activeTab === "solo" ? " is-active" : ""}" data-tab="solo" role="tab" aria-selected="${activeTab === "solo"}">
+      <span class="menu-tab-label">SOLITARI</span>
+      <span class="menu-tab-count">${soloReady}/${soloTotal}</span>
+    </button>
+    <button class="menu-tab${activeTab === "company" ? " is-active" : ""}" data-tab="company" role="tab" aria-selected="${activeTab === "company"}">
+      <span class="menu-tab-label">COMPAGNIA</span>
+      <span class="menu-tab-count">${coReady}/${coTotal}</span>
+    </button>
+  </nav>`;
+}
 
-  function renderSection(label: string, subtitle: string, list: GameEntry[]): string {
-    if (list.length === 0) return "";
-    const tiles = list.map((g) => tileHTML(g, bestMap.get(g.id))).join("\n");
-    return `<section class="menu-section">
-      <header class="menu-section-head">
-        <h2 class="menu-section-title">${label}</h2>
-        <span class="menu-section-sub">${subtitle}</span>
-      </header>
-      <div class="game-grid-menu">${tiles}</div>
-    </section>`;
-  }
+async function loadActiveTab(): Promise<GameCategory> {
+  try {
+    const row = await db.settings.get(TAB_KEY);
+    if (row?.value === "solo" || row?.value === "company") return row.value;
+  } catch { /* non-critical */ }
+  return "solo";
+}
 
-  return [
-    renderSection("SOLITARI", "Gioca da solo", solo),
-    renderSection("COMPAGNIA", "2 giocatori · locale o online", company),
-  ].join("\n");
+async function saveActiveTab(tab: GameCategory): Promise<void> {
+  try {
+    await db.settings.put({ key: TAB_KEY, value: tab });
+  } catch { /* non-critical */ }
 }
 
 async function render(): Promise<void> {
   if (!root) return;
   const profile = getProfile();
-  const sections = await buildSections();
-  const readyCount = GAMES.filter((g) => g.status === "ready").length;
-  const totalCount = GAMES.length;
+  activeTab = await loadActiveTab();
+  const grid = await buildGridFor(activeTab);
 
   root.innerHTML = `
     <div class="menu-page">
@@ -113,11 +129,11 @@ async function render(): Promise<void> {
         </div>
         <div class="header-right">
           ${nicknameEditorHTML(profile.nickname)}
-          <div class="game-count">${readyCount}/${totalCount} games</div>
         </div>
       </header>
+      ${tabsHTML()}
       <main class="menu-main">
-        ${sections}
+        <div class="game-grid-menu" id="game-grid">${grid}</div>
       </main>
     </div>
   `;
@@ -125,10 +141,33 @@ async function render(): Promise<void> {
   attachHandlers();
 }
 
+async function switchTab(tab: GameCategory): Promise<void> {
+  if (tab === activeTab || !root) return;
+  activeTab = tab;
+  void saveActiveTab(tab);
+  root.querySelectorAll<HTMLElement>(".menu-tab").forEach((el) => {
+    const t = el.dataset["tab"] as GameCategory | undefined;
+    const on = t === tab;
+    el.classList.toggle("is-active", on);
+    el.setAttribute("aria-selected", String(on));
+  });
+  const grid = root.querySelector<HTMLElement>("#game-grid");
+  if (grid) grid.innerHTML = await buildGridFor(tab);
+  attachHandlers();
+}
+
 // ---------- event handling ----------
 
 function attachHandlers(): void {
   if (!root) return;
+
+  // Tabs
+  root.querySelectorAll<HTMLElement>(".menu-tab").forEach((el) => {
+    el.addEventListener("pointerup", () => {
+      const t = el.dataset["tab"] as GameCategory | undefined;
+      if (t) void switchTab(t);
+    });
+  });
 
   // Nick button
   const nickBtn = root.querySelector<HTMLElement>("#nick-btn");
