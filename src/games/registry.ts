@@ -152,7 +152,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#0b1530", fg: "#ffffff", accent: "#f6c24c" },
     category: "company",
     modes: ["local2p", "remote2p"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./tris/index.js"),
   },
   {
     id: "dama",

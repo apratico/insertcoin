@@ -612,6 +612,44 @@ function tapRotateArt(id: string): string {
   return gridLines.join("\n  ") + "\n  " + arena + "\n  " + ring + "\n  " + rotArrow + "\n  " + runner + "\n  " + tank + "\n  " + swifty + "\n  " + player + "\n  " + bullets2;
 }
 
+function trisArt(id: string): string {
+  // 3x3 grid lines
+  const gridLines = [
+    `<line x1="16" y1="12" x2="144" y2="12" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>`,
+    `<line x1="16" y1="46" x2="144" y2="46" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>`,
+    `<line x1="16" y1="80" x2="144" y2="80" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>`,
+    `<line x1="16" y1="14" x2="16" y2="82" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>`,
+    `<line x1="59" y1="14" x2="59" y2="82" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>`,
+    `<line x1="101" y1="14" x2="101" y2="82" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>`,
+    `<line x1="144" y1="14" x2="144" y2="82" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>`,
+  ].join("\n  ");
+
+  // X at (0,0): cyan
+  const xCy = "#00e5ff";
+  const x1 = `<g filter="url(#glow-${id})">
+    <line x1="25" y1="21" x2="50" y2="38" stroke="${xCy}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="50" y1="21" x2="25" y2="38" stroke="${xCy}" stroke-width="4" stroke-linecap="round"/>
+  </g>`;
+
+  // O at (1,1): magenta
+  const oCl = "#ff40c8";
+  const o1 = `<circle cx="80" cy="63" r="12" fill="none" stroke="${oCl}" stroke-width="4" filter="url(#glow-${id})"/>`;
+
+  // X at (2,2): cyan (smaller glow = further from viewer)
+  const x2 = `<g filter="url(#glow-${id})">
+    <line x1="110" y1="55" x2="135" y2="72" stroke="${xCy}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="135" y1="55" x2="110" y2="72" stroke="${xCy}" stroke-width="4" stroke-linecap="round"/>
+  </g>`;
+
+  // O at (0,2): magenta
+  const o2 = `<circle cx="37" cy="63" r="12" fill="none" stroke="${oCl}" stroke-width="4" filter="url(#glow-${id})"/>`;
+
+  // Diagonal win line (top-right to bottom-left: 2,0 → 1,1 → 0,2) — gold
+  const winLine = `<line x1="122" y1="29" x2="37" y2="63" stroke="#f6c24c" stroke-width="3.5" stroke-linecap="round" filter="url(#glow2-${id})" opacity="0.85"/>`;
+
+  return gridLines + "\n  " + x1 + "\n  " + o1 + "\n  " + x2 + "\n  " + o2 + "\n  " + winLine;
+}
+
 // ---------- title overlay (common) ----------
 
 function titleOverlay(title: string, fg: string): string {
@@ -643,6 +681,7 @@ function artBody(entry: GameEntry): string {
       case "lights-out": return lightsOutArt(id);
       case "bubble-shooter": return bubbleShooterArt(id);
       case "tap-rotate": return tapRotateArt(id);
+      case "tris": return trisArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
