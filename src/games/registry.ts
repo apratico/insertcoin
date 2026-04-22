@@ -95,7 +95,8 @@ export const GAMES: GameEntry[] = [
     palette: { bg: "#70c5ce", fg: "#ffffff", accent: "#ded895" },
     category: "solo",
     modes: ["solo"],
-    status: "soon",
+    status: "ready",
+    load: () => import("./flappy/index.js"),
   },
 
   // --- Commercial solo shooter concepts (soon except tap-rotate) ---
