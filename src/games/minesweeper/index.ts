@@ -789,6 +789,10 @@ export function mount(container: HTMLElement): () => void {
   // ---------- pointer input ----------
 
   function wireCanvasInput(canvas: HTMLCanvasElement): void {
+    const LONG_PRESS_MS = 500;
+    const DOUBLE_TAP_MS = 500;
+    const MOVE_THRESHOLD = 10;
+
     let downR = -1;
     let downC = -1;
     let downX = 0;
@@ -796,6 +800,11 @@ export function mount(container: HTMLElement): () => void {
     let downTime = 0;
     let longPressHandle = 0;
     let longFired = false;
+
+    // Double-tap = flag fallback for users whose long-press is unreliable
+    let lastTapR = -1;
+    let lastTapC = -1;
+    let lastTapTime = 0;
 
     function onPointerDown(e: PointerEvent): void {
       if (activeOverlay || phase === "dead" || phase === "won") return;
@@ -811,34 +820,58 @@ export function mount(container: HTMLElement): () => void {
 
       longPressHandle = window.setTimeout(() => {
         longFired = true;
-        navigator.vibrate?.(10);
+        navigator.vibrate?.(15);
         doFlag(downR, downC);
-      }, 400);
+      }, LONG_PRESS_MS);
     }
 
     function onPointerUp(e: PointerEvent): void {
       clearTimeout(longPressHandle);
       if (activeOverlay || phase === "dead" || phase === "won") return;
-      if (longFired) return;
+      if (longFired) {
+        // consume — long-press already flagged
+        lastTapR = -1;
+        lastTapC = -1;
+        return;
+      }
 
       const dx = e.clientX - downX;
       const dy = e.clientY - downY;
-      const moved = Math.sqrt(dx * dx + dy * dy) > 10;
-      const quick = e.timeStamp - downTime < 250;
+      const moved = Math.sqrt(dx * dx + dy * dy) > MOVE_THRESHOLD;
+      if (moved) return;
 
-      if (!moved && quick) {
-        const pos = cellFromPointer(e);
-        if (!pos) return;
-        if (pos.r !== downR || pos.c !== downC) return;
+      const pos = cellFromPointer(e);
+      if (!pos) return;
+      if (pos.r !== downR || pos.c !== downC) return;
 
-        if (inputMode === "flag") {
-          doFlag(pos.r, pos.c);
-        } else {
-          const cell = board[pos.r]![pos.c]!;
-          if (cell.state === "flagged") return; // flagged cells are protected
-          doReveal(pos.r, pos.c);
-        }
+      const now = e.timeStamp;
+      const isDoubleTap =
+        lastTapR === pos.r && lastTapC === pos.c && now - lastTapTime < DOUBLE_TAP_MS;
+      lastTapR = pos.r;
+      lastTapC = pos.c;
+      lastTapTime = now;
+
+      if (inputMode === "flag") {
+        // Flag mode: tap only ADDS a flag; removal requires long-press.
+        // Avoids the oscillation users saw when tapping repeatedly.
+        const cell = board[pos.r]![pos.c]!;
+        if (cell.state === "hidden") doFlag(pos.r, pos.c);
+        return;
       }
+
+      // Reveal mode
+      const cell = board[pos.r]![pos.c]!;
+      if (cell.state === "flagged") return;
+
+      if (isDoubleTap && cell.state === "hidden") {
+        // Double-tap fallback = place flag when long-press was missed
+        doFlag(pos.r, pos.c);
+        lastTapR = -1;
+        lastTapC = -1;
+        return;
+      }
+
+      doReveal(pos.r, pos.c);
     }
 
     function onPointerCancel(): void {
