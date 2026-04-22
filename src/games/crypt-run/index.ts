@@ -11,19 +11,19 @@ const JUMP_VY_SHORT = -520;
 const JUMP_VY_LONG = -680;
 const DOUBLE_JUMP_VY = -460;
 const JUMP_HOLD_MAX_MS = 300;
-const RUN_SPEED = 220;
 const PLAYER_X_RATIO = 0.30;
 const HUD_H = 44;
 const DT_CAP = 32;
 const HINT_DISMISS_MS = 6000;
 const SLIDE_DURATION_MS = 400;
-const ATTACK_RANGE = 40;
-const ATTACK_COOLDOWN_MS = 400;
+const ATTACK_RANGE = 55;
+const ATTACK_COOLDOWN_MS = 250;
 const ATTACK_DAMAGE_FRAME_MS = 50;
 const ATTACK_SWING_MS = 150;
 const CHUNK_COLS = 8;
 const CHUNK_ROWS = 6;
 const LOOKAHEAD_CHUNKS = 3;
+const PIXEL = 3; // pixel art scale for sprites
 
 // tile ids
 const T_AIR = 0;
@@ -32,6 +32,326 @@ const T_PLATFORM = 2;
 const T_SPIKE = 3;
 const T_COIN = 4;
 const T_TORCH = 5;
+
+// ─── difficulty ───────────────────────────────────────────────────────────────
+
+type Difficulty = "easy" | "medium" | "hard";
+
+interface DifficultyParams {
+  runSpeed: number;
+  gapChance: number;
+  enemyChance: number;
+  coinChance: number;
+  spikeChance: number;
+  scoreMultiplier: number;
+  enemyHpBonus: number;
+}
+
+const DIFFICULTY: Record<Difficulty, DifficultyParams> = {
+  easy:   { runSpeed: 170, gapChance: 0.15, enemyChance: 0.30, coinChance: 0.40, spikeChance: 0.10, scoreMultiplier: 1.0,  enemyHpBonus: -1 },
+  medium: { runSpeed: 220, gapChance: 0.35, enemyChance: 0.55, coinChance: 0.30, spikeChance: 0.25, scoreMultiplier: 1.5,  enemyHpBonus: 0  },
+  hard:   { runSpeed: 280, gapChance: 0.55, enemyChance: 0.80, coinChance: 0.20, spikeChance: 0.40, scoreMultiplier: 2.5,  enemyHpBonus: 1  },
+};
+
+// ─── pixel sprite definitions ─────────────────────────────────────────────────
+
+type SpriteRow = string;
+
+const KNIGHT_PALETTE: Record<string, string> = {
+  "1": "#b0a8a0",  // armor light grey
+  "2": "#5a4f45",  // leg brown
+  "3": "#4a4238",  // dark border
+  "4": "#c08040",  // belt gold
+  "r": "#ff3333",  // glowing eyes
+  "s": "#ccddff",  // sword silver
+  "v": "#8888cc",  // visor slit
+  "h": "#888aaa",  // helm
+};
+
+// 4-frame run cycle (8×8 logical px → PIXEL scale)
+const KNIGHT_RUN: SpriteRow[][] = [
+  [ // frame 0 — stride A
+    "...333..",
+    "..31133.",
+    ".3111133",
+    ".3h1vh13",
+    ".311113.",
+    "..41144.",
+    ".22..22.",
+    "222...22",
+  ],
+  [ // frame 1
+    "...333..",
+    "..31133.",
+    ".3111133",
+    ".3h1vh13",
+    ".311113.",
+    "..41144.",
+    "222..22.",
+    ".22...22",
+  ],
+  [ // frame 2 — stride B (mirror)
+    "...333..",
+    "..31133.",
+    ".3111133",
+    ".3h1vh13",
+    ".311113.",
+    "..41144.",
+    ".22..22.",
+    ".22..222",
+  ],
+  [ // frame 3
+    "...333..",
+    "..31133.",
+    ".3111133",
+    ".3h1vh13",
+    ".311113.",
+    "..41144.",
+    ".22..222",
+    "22...22.",
+  ],
+];
+
+// jump — arms up, legs tucked
+const KNIGHT_JUMP: SpriteRow[] = [
+  "3..333..",
+  ".331133.",
+  ".3111133",
+  ".3h1vh13",
+  "3.11113.",
+  "..41144.",
+  "...22...",
+  "..2222..",
+];
+
+// slide — 10×6 squashed
+const KNIGHT_SLIDE: SpriteRow[] = [
+  "..3333333.",
+  ".311h1h113",
+  "3311111133",
+  ".344444433",
+  ".22222222.",
+  ".2........",
+];
+
+// attack swing — sword extended right
+const KNIGHT_ATTACK: SpriteRow[] = [
+  "...333..",
+  "..31133.",
+  ".3111133",
+  ".3h1vh13",
+  ".311113s",
+  "..41144ssss",
+  "..22.22.",
+  "..22.22.",
+];
+
+// Zombie walk — 2 frames, 7×9 logical
+const ZOMBIE_PALETTE: Record<string, string> = {
+  "g": "#55aa55",  // skin green
+  "d": "#447744",  // dark green
+  "r": "#ff4400",  // red eyes
+  "b": "#336633",  // legs
+  "k": "#222222",  // dark detail
+};
+
+const ZOMBIE_FRAMES: SpriteRow[][] = [
+  [ // frame 0
+    ".ggggg.",
+    "ggrgr.g",
+    ".ggggg.",
+    ".ddddd.",
+    "d.ddd.d",
+    "dd...dd",
+    "b.....b",
+    "bb...bb",
+    "bb...bb",
+  ],
+  [ // frame 1 — shifted arms
+    ".ggggg.",
+    "g.rgrgg",
+    ".ggggg.",
+    ".ddddd.",
+    "d.ddd.d",
+    "dd...dd",
+    ".b...b.",
+    "bb...bb",
+    ".bb.bb.",
+  ],
+];
+
+// Bat — 2 frames, 9×6 logical
+const BAT_PALETTE: Record<string, string> = {
+  "r": "#cc3300",  // body red
+  "w": "#aa2200",  // wing dark
+  "e": "#ff6600",  // eyes orange
+  "k": "#1a0010",  // black
+};
+
+const BAT_FRAMES: SpriteRow[][] = [
+  [ // wings up
+    "w..rrr..w",
+    "ww.rrr.ww",
+    "wwwrrrwww",
+    "ww.ere.ww",
+    "..wr.rw..",
+    "...www...",
+  ],
+  [ // wings flat
+    ".........",
+    "ww.rrr.ww",
+    "wwwrrrwww",
+    "ww.ere.ww",
+    "www...www",
+    ".wwwwwww.",
+  ],
+];
+
+// Skeleton — 2 frames, 7×9 logical
+const SKELETON_PALETTE: Record<string, string> = {
+  "b": "#eeeecc",  // bone cream
+  "d": "#ddddaa",  // shadow bone
+  "k": "#222222",  // dark
+  "s": "#ccddff",  // sword
+  "e": "#aabbdd",  // shield edge
+  "f": "#7788aa",  // shield face
+};
+
+const SKELETON_FRAMES: SpriteRow[][] = [
+  [ // frame 0
+    ".bbbbb.",
+    "bkbkb.b",
+    ".bbbbb.",
+    ".bdbd..",
+    "b.bbb.b",
+    "b.....b",
+    "b.....b",
+    "bb...bb",
+    "bb...bb",
+  ],
+  [ // frame 1
+    ".bbbbb.",
+    "b.bkbbb",
+    ".bbbbb.",
+    ".bdbd..",
+    "b.bbb.b",
+    "b.....b",
+    ".b...b.",
+    "bb...bb",
+    ".bb.bb.",
+  ],
+];
+
+// Coin — 4 frame rotation (Y-stretch trick), 5×5 logical
+const COIN_PALETTE: Record<string, string> = {
+  "g": "#ffcc00",  // gold
+  "y": "#ffe066",  // highlight
+  "d": "#cc8800",  // shadow
+};
+
+const COIN_FRAMES: SpriteRow[][] = [
+  [ ".ggg.", "gygdg", "gygdg", "gygdg", ".ggg." ],
+  [ ".gg.", "yggd", "yggd", "yggd", ".gg." ],
+  [ ".g.", "yg.", "ygd", "yg.", ".g." ],
+  [ ".gg.", "yggd", "yggd", "yggd", ".gg." ],
+];
+
+// Ground tile 32×32 procedural — brick pattern
+function buildGroundTileCanvas(): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = TILE; c.height = TILE;
+  const cx = c.getContext("2d")!;
+
+  // base dark purple
+  cx.fillStyle = "#2a1035";
+  cx.fillRect(0, 0, TILE, TILE);
+
+  // top highlight border
+  cx.fillStyle = "#5a2a80";
+  cx.fillRect(0, 0, TILE, 2);
+
+  // two brick rows
+  const rowH = 14;
+  const brickColors = ["#2e1840", "#341a48"];
+  for (let row = 0; row < 2; row++) {
+    const ry = 4 + row * rowH;
+    const offset = row % 2 === 0 ? 0 : 16;
+    for (let bx = -16; bx < TILE + 16; bx += 32) {
+      const bxShifted = bx + offset;
+      cx.fillStyle = brickColors[row % 2]!;
+      cx.fillRect(bxShifted, ry, 30, rowH - 2);
+      // mortar lines
+      cx.fillStyle = "#1a0620";
+      cx.fillRect(bxShifted + 29, ry, 2, rowH - 2);
+      cx.fillRect(bxShifted, ry + rowH - 2, 32, 2);
+    }
+  }
+
+  // random cracks on a few spots
+  cx.strokeStyle = "#1a0620";
+  cx.lineWidth = 1;
+  // deterministic "random" cracks using tile constants
+  const crackDefs: [number, number, number, number][] = [
+    [8, 6, 12, 12], [22, 18, 25, 22],
+  ];
+  for (const [x1, y1, x2, y2] of crackDefs) {
+    cx.beginPath(); cx.moveTo(x1, y1); cx.lineTo(x2, y2); cx.stroke();
+  }
+
+  return c;
+}
+
+// Platform tile — dark wood plank 32×8
+function buildPlatformTileCanvas(): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = TILE; c.height = 8;
+  const cx = c.getContext("2d")!;
+  cx.fillStyle = "#3d2010";
+  cx.fillRect(0, 0, TILE, 8);
+  cx.fillStyle = "#5a3018";
+  cx.fillRect(0, 0, TILE, 2);
+  // wood grain lines
+  cx.strokeStyle = "#2a1008";
+  cx.lineWidth = 1;
+  for (let gx = 6; gx < TILE; gx += 10) {
+    cx.beginPath(); cx.moveTo(gx, 2); cx.lineTo(gx + 2, 8); cx.stroke();
+  }
+  return c;
+}
+
+// ─── sprite renderer ──────────────────────────────────────────────────────────
+
+function drawSprite(
+  ctx: CanvasRenderingContext2D,
+  sprite: SpriteRow[],
+  palette: Record<string, string>,
+  x: number,
+  y: number,
+  ps: number,          // pixel size
+  flipX = false
+): void {
+  const rows = sprite.length;
+  const cols = sprite[0]?.length ?? 0;
+  const ox = flipX ? x + cols * ps : x;
+  const scaleX = flipX ? -1 : 1;
+
+  ctx.save();
+  ctx.translate(ox, y);
+  ctx.scale(scaleX, 1);
+
+  for (let r = 0; r < rows; r++) {
+    const row = sprite[r]!;
+    for (let c = 0; c < row.length; c++) {
+      const ch = row[c]!;
+      if (ch === ".") continue;
+      const color = palette[ch];
+      if (!color) continue;
+      ctx.fillStyle = color;
+      ctx.fillRect(c * ps, r * ps, ps, ps);
+    }
+  }
+  ctx.restore();
+}
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +405,14 @@ interface Particle {
   r: number;
 }
 
+interface FloatText {
+  x: number;
+  y: number;
+  text: string;
+  life: number;  // 0..1
+  maxLife: number;
+}
+
 interface Chunk {
   col: number; // world tile-column of left edge
   tiles: number[][]; // [row][col], row 0 = top
@@ -92,20 +420,51 @@ interface Chunk {
   coins: Coin[];
 }
 
-// ─── world tile helpers ───────────────────────────────────────────────────────
+// ─── fog particles ────────────────────────────────────────────────────────────
 
-// ─── chunk templates (10 patterns) ──────────────────────────────────────────
+interface FogParticle {
+  x: number;
+  y: number;
+  w: number;
+  alpha: number;
+  speed: number;
+}
+
+function initFog(cw: number, ch: number): FogParticle[] {
+  const arr: FogParticle[] = [];
+  const fogY = ch - HUD_H;
+  for (let i = 0; i < 18; i++) {
+    arr.push({
+      x: Math.random() * cw,
+      y: fogY - 20 - Math.random() * 60,
+      w: 60 + Math.random() * 120,
+      alpha: 0.04 + Math.random() * 0.10,
+      speed: 12 + Math.random() * 24,
+    });
+  }
+  return arr;
+}
+
+// ─── world tile helpers ───────────────────────────────────────────────────────
 
 function emptyRows(rows: number): number[][] {
   return Array.from({ length: rows }, () => Array(CHUNK_COLS).fill(T_AIR) as number[]);
 }
 
-function buildChunk(col: number): number[][] {
+function buildChunk(col: number, diff: DifficultyParams): number[][] {
   const g = T_GROUND;
   const p = T_PLATFORM;
   const s = T_SPIKE;
   const c = T_COIN;
   const t = T_TORCH;
+
+  // probability-gated decorators — applied after template selection
+  const addSpike = (r: number[][], row: number, cc: number): void => {
+    if (Math.random() < diff.spikeChance) r[row]![cc] = s;
+  };
+  const addCoin = (r: number[][], row: number, cc: number): void => {
+    if (Math.random() < diff.coinChance + 0.1) r[row]![cc] = c;
+  };
 
   const templates: (() => number[][])[] = [
     // 0: flat ground with torches
@@ -123,32 +482,36 @@ function buildChunk(col: number): number[][] {
       r[CHUNK_ROWS - 3]![2] = p;
       r[CHUNK_ROWS - 3]![3] = p;
       r[CHUNK_ROWS - 3]![4] = p;
-      r[CHUNK_ROWS - 4]![3] = c;
+      addCoin(r, CHUNK_ROWS - 4, 3);
       return r;
     },
-    // 2: pit (2 tiles wide) — player must jump
+    // 2: pit (2 tiles wide) — only if gapChance allows
     () => {
       const r = emptyRows(CHUNK_ROWS);
       for (let cc = 0; cc < CHUNK_COLS; cc++) r[CHUNK_ROWS - 1]![cc] = g;
-      r[CHUNK_ROWS - 1]![3] = T_AIR;
-      r[CHUNK_ROWS - 1]![4] = T_AIR;
+      if (Math.random() < diff.gapChance) {
+        r[CHUNK_ROWS - 1]![3] = T_AIR;
+        r[CHUNK_ROWS - 1]![4] = T_AIR;
+      }
       return r;
     },
-    // 3: pit (3 tiles wide) — tighter timing
+    // 3: pit (3 tiles wide)
     () => {
       const r = emptyRows(CHUNK_ROWS);
       for (let cc = 0; cc < CHUNK_COLS; cc++) r[CHUNK_ROWS - 1]![cc] = g;
-      r[CHUNK_ROWS - 1]![2] = T_AIR;
-      r[CHUNK_ROWS - 1]![3] = T_AIR;
-      r[CHUNK_ROWS - 1]![4] = T_AIR;
+      if (Math.random() < diff.gapChance) {
+        r[CHUNK_ROWS - 1]![2] = T_AIR;
+        r[CHUNK_ROWS - 1]![3] = T_AIR;
+        r[CHUNK_ROWS - 1]![4] = T_AIR;
+      }
       return r;
     },
     // 4: spikes on ground
     () => {
       const r = emptyRows(CHUNK_ROWS);
       for (let cc = 0; cc < CHUNK_COLS; cc++) r[CHUNK_ROWS - 1]![cc] = g;
-      r[CHUNK_ROWS - 2]![3] = s;
-      r[CHUNK_ROWS - 2]![4] = s;
+      addSpike(r, CHUNK_ROWS - 2, 3);
+      addSpike(r, CHUNK_ROWS - 2, 4);
       return r;
     },
     // 5: step up then back down
@@ -156,7 +519,7 @@ function buildChunk(col: number): number[][] {
       const r = emptyRows(CHUNK_ROWS);
       for (let cc = 0; cc < 4; cc++) r[CHUNK_ROWS - 1]![cc] = g;
       for (let cc = 4; cc < CHUNK_COLS; cc++) r[CHUNK_ROWS - 2]![cc] = g;
-      r[CHUNK_ROWS - 3]![5] = c;
+      addCoin(r, CHUNK_ROWS - 3, 5);
       return r;
     },
     // 6: step down
@@ -172,18 +535,18 @@ function buildChunk(col: number): number[][] {
       for (let cc = 0; cc < CHUNK_COLS; cc++) r[CHUNK_ROWS - 1]![cc] = g;
       r[CHUNK_ROWS - 3]![1] = p; r[CHUNK_ROWS - 3]![2] = p;
       r[CHUNK_ROWS - 5]![4] = p; r[CHUNK_ROWS - 5]![5] = p;
-      r[CHUNK_ROWS - 4]![1] = c;
-      r[CHUNK_ROWS - 6]![4] = c;
+      addCoin(r, CHUNK_ROWS - 4, 1);
+      addCoin(r, CHUNK_ROWS - 6, 4);
       return r;
     },
     // 8: spike + platform skip
     () => {
       const r = emptyRows(CHUNK_ROWS);
       for (let cc = 0; cc < CHUNK_COLS; cc++) r[CHUNK_ROWS - 1]![cc] = g;
-      r[CHUNK_ROWS - 2]![2] = s;
-      r[CHUNK_ROWS - 2]![5] = s;
+      addSpike(r, CHUNK_ROWS - 2, 2);
+      addSpike(r, CHUNK_ROWS - 2, 5);
       r[CHUNK_ROWS - 4]![3] = p; r[CHUNK_ROWS - 4]![4] = p;
-      r[CHUNK_ROWS - 5]![3] = c;
+      addCoin(r, CHUNK_ROWS - 5, 3);
       return r;
     },
     // 9: wide pit with platform bridge
@@ -191,8 +554,14 @@ function buildChunk(col: number): number[][] {
       const r = emptyRows(CHUNK_ROWS);
       for (let cc = 0; cc < 2; cc++) r[CHUNK_ROWS - 1]![cc] = g;
       for (let cc = 6; cc < CHUNK_COLS; cc++) r[CHUNK_ROWS - 1]![cc] = g;
-      r[CHUNK_ROWS - 3]![3] = p; r[CHUNK_ROWS - 3]![4] = p; r[CHUNK_ROWS - 3]![5] = p;
-      r[CHUNK_ROWS - 4]![4] = c;
+      if (Math.random() < diff.gapChance) {
+        r[CHUNK_ROWS - 3]![3] = p; r[CHUNK_ROWS - 3]![4] = p; r[CHUNK_ROWS - 3]![5] = p;
+      } else {
+        // fill the pit on easy
+        for (let cc = 2; cc < 6; cc++) r[CHUNK_ROWS - 1]![cc] = g;
+        r[CHUNK_ROWS - 3]![3] = p; r[CHUNK_ROWS - 3]![4] = p; r[CHUNK_ROWS - 3]![5] = p;
+      }
+      addCoin(r, CHUNK_ROWS - 4, 4);
       return r;
     },
   ];
@@ -206,7 +575,9 @@ function buildChunk(col: number): number[][] {
 
 let _eid = 0;
 
-function spawnEnemyForChunk(chunk: Chunk, canvasH: number): void {
+function spawnEnemyForChunk(chunk: Chunk, canvasH: number, diff: DifficultyParams): void {
+  if (Math.random() > diff.enemyChance) return;
+
   const groundY = canvasH - HUD_H;
   const roll = Math.random();
   let kind: EnemyKind;
@@ -222,7 +593,8 @@ function spawnEnemyForChunk(chunk: Chunk, canvasH: number): void {
     tileY = groundY - TILE;
   }
 
-  const hp = kind === "skeleton" ? 2 : 1;
+  const baseHp = kind === "skeleton" ? 2 : 1;
+  const hp = Math.max(1, baseHp + diff.enemyHpBonus);
   chunk.enemies.push({
     id: _eid++,
     kind,
@@ -280,6 +652,22 @@ function spawnParticles(
   }
 }
 
+function spawnDustParticles(particles: Particle[], x: number, y: number): void {
+  const count = 2 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: x + (Math.random() - 0.5) * 8,
+      y,
+      vx: (Math.random() - 0.5) * 30,
+      vy: -20 - Math.random() * 20,
+      color: "#aa9988",
+      life: 1,
+      maxLife: 180 + Math.random() * 80,
+      r: 1 + Math.random() * 1.5,
+    });
+  }
+}
+
 // ─── AABB collision helpers ───────────────────────────────────────────────────
 
 interface Rect {
@@ -332,7 +720,6 @@ function resolvePlayerTiles(
         if (!rectsOverlap(pr, { x: tx, y: ty, w: TILE, h: TILE })) continue;
 
         if (t === T_PLATFORM) {
-          // only collide from top (falling onto)
           if (player.vy >= 0 && prevY - h <= ty && player.y - h >= ty - 2) {
             player.y = ty;
             player.vy = 0;
@@ -340,12 +727,10 @@ function resolvePlayerTiles(
             player.jumpsUsed = 0;
           }
         } else {
-          // full solid
           const overlapX = Math.min(pr.x + pr.w, tx + TILE) - Math.max(pr.x, tx);
           const overlapY = Math.min(pr.y, ty + TILE) - Math.max(pr.y - h, ty);
 
           if (overlapX < overlapY) {
-            // push horizontally — treat as wall
             player.alive = false;
             return;
           } else {
@@ -367,50 +752,146 @@ function resolvePlayerTiles(
 
 // ─── drawing helpers ──────────────────────────────────────────────────────────
 
+// Cached tile canvases (built once)
+let _groundTile: HTMLCanvasElement | null = null;
+let _platformTile: HTMLCanvasElement | null = null;
+
+function getGroundTile(): HTMLCanvasElement {
+  if (!_groundTile) _groundTile = buildGroundTileCanvas();
+  return _groundTile;
+}
+
+function getPlatformTile(): HTMLCanvasElement {
+  if (!_platformTile) _platformTile = buildPlatformTileCanvas();
+  return _platformTile;
+}
+
 function drawParallax(
   ctx: CanvasRenderingContext2D,
   cw: number,
   ch: number,
-  worldX: number
+  worldX: number,
+  fogParticles: FogParticle[],
+  tick: number
 ): void {
-  // layer 1: sky (stars + gradient)
+  // sky gradient
   const sky = ctx.createLinearGradient(0, 0, 0, ch);
-  sky.addColorStop(0, "#14041a");
+  sky.addColorStop(0, "#0d021a");
+  sky.addColorStop(0.6, "#1a0530");
   sky.addColorStop(1, "#2a0838");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, cw, ch);
 
-  // stars scroll at 0.2x
-  const starOff = (worldX * 0.2) % cw;
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
-  for (let i = 0; i < 28; i++) {
-    const sx = ((i * 47 + 13) % (cw * 2)) - starOff;
-    const sy = ((i * 31 + 7) % (ch * 0.55));
-    const sr = i % 4 === 0 ? 1.5 : 0.7;
+  // stars — 3 sizes + sinusoidal twinkle
+  const starOff = (worldX * 0.15) % cw;
+  for (let i = 0; i < 36; i++) {
+    const sx = ((i * 53 + 17) % (cw * 2)) - starOff;
+    const sy = ((i * 37 + 11) % (ch * 0.50));
+    const sizeTier = i % 6;
+    const sr = sizeTier === 0 ? 2.0 : sizeTier < 3 ? 1.2 : 0.6;
+    const twinkle = 0.4 + 0.6 * Math.abs(Math.sin(tick * 0.02 + i * 0.9));
+    ctx.globalAlpha = twinkle;
+    ctx.fillStyle = i % 7 === 0 ? "#fffacc" : "#ffffff";
     ctx.beginPath();
     ctx.arc(((sx % cw) + cw) % cw, sy, sr, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.globalAlpha = 1;
 
-  // layer 2: castle silhouette (0.5x)
-  const castleOff = (worldX * 0.5) % (cw * 2);
-  ctx.fillStyle = "#1a0828";
-  const castleW = cw * 2;
-  const towerCount = 6;
-  for (let i = 0; i < towerCount; i++) {
-    const bx = ((i / towerCount) * castleW - castleOff + castleW) % castleW;
-    const bh = 40 + (i % 3) * 20;
-    const bw = 20 + (i % 2) * 8;
-    ctx.fillRect(bx - bw / 2, ch - HUD_H - bh, bw, bh);
-    // merlons
-    for (let m = 0; m < 3; m++) {
-      ctx.fillRect(bx - bw / 2 + m * (bw / 3), ch - HUD_H - bh - 6, bw / 3 - 2, 8);
+  // moon — large, top-right area, with craters + glow
+  const moonX = cw * 0.82;
+  const moonY = ch * 0.22;
+  const moonR = 28;
+  // glow
+  const moonGlow = ctx.createRadialGradient(moonX, moonY, moonR * 0.6, moonX, moonY, moonR * 2.2);
+  moonGlow.addColorStop(0, "rgba(255,255,210,0.22)");
+  moonGlow.addColorStop(1, "rgba(255,255,210,0)");
+  ctx.fillStyle = moonGlow;
+  ctx.beginPath();
+  ctx.arc(moonX, moonY, moonR * 2.2, 0, Math.PI * 2);
+  ctx.fill();
+  // moon body
+  ctx.fillStyle = "#f5f0d8";
+  ctx.beginPath();
+  ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+  ctx.fill();
+  // craters
+  const craterDefs: [number, number, number][] = [
+    [-8, -6, 5], [10, 4, 7], [-4, 12, 4], [14, -10, 3],
+  ];
+  for (const [cx2, cy2, cr] of craterDefs) {
+    ctx.fillStyle = "rgba(180,170,130,0.55)";
+    ctx.beginPath();
+    ctx.arc(moonX + cx2, moonY + cy2, cr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // castle silhouette — 3 depth layers
+  const castleColors = ["#160420", "#1a0828", "#220e32"];
+  const depthSpeeds = [0.25, 0.45, 0.65];
+  for (let depth = 0; depth < 3; depth++) {
+    const castleOff = (worldX * depthSpeeds[depth]!) % (cw * 2);
+    ctx.fillStyle = castleColors[depth]!;
+    const castleW = cw * 2;
+    const towerCount = 5 + depth;
+    const baseH = 30 + depth * 18;
+
+    // base wall
+    ctx.fillRect(
+      ((-castleOff % castleW) + castleW) % castleW - castleW,
+      ch - HUD_H - baseH,
+      castleW * 2,
+      baseH
+    );
+
+    for (let i = 0; i < towerCount; i++) {
+      const bx = ((i / towerCount) * castleW - castleOff + castleW * 2) % castleW;
+      const bh = baseH + 20 + (i % 3) * 16 + depth * 10;
+      const bw = 18 + (i % 2) * 10 + depth * 4;
+
+      ctx.fillRect(bx - bw / 2, ch - HUD_H - bh, bw, bh);
+
+      // merlons
+      const mCount = Math.max(2, Math.floor(bw / 8));
+      const mw = bw / mCount;
+      for (let m = 0; m < mCount; m++) {
+        if (m % 2 === 0) {
+          ctx.fillRect(bx - bw / 2 + m * mw, ch - HUD_H - bh - 8, mw - 2, 9);
+        }
+      }
+
+      // lit windows (orange dots) on back layers
+      if (depth < 2) {
+        ctx.fillStyle = "#ff9933";
+        ctx.shadowColor = "#ff9933";
+        ctx.shadowBlur = 4;
+        const wCount = Math.max(1, Math.floor(bh / 20));
+        for (let ww = 0; ww < wCount; ww++) {
+          const wy = ch - HUD_H - bh + 10 + ww * 18;
+          if (wy < ch - HUD_H - 4) {
+            ctx.fillRect(bx - 2, wy, 4, 5);
+          }
+        }
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = castleColors[depth]!;
+      }
     }
   }
 
-  // ground strip
+  // fog layer — mid-ground horizontal wisps
+  for (const fp of fogParticles) {
+    const grad = ctx.createLinearGradient(fp.x, fp.y, fp.x + fp.w, fp.y);
+    grad.addColorStop(0,   `rgba(120,60,180,0)`);
+    grad.addColorStop(0.3, `rgba(120,60,180,${fp.alpha})`);
+    grad.addColorStop(0.7, `rgba(120,60,180,${fp.alpha})`);
+    grad.addColorStop(1,   `rgba(120,60,180,0)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(fp.x, fp.y, fp.w, 18);
+  }
+
+  // ground strip gradient
   const groundGrad = ctx.createLinearGradient(0, ch - HUD_H - 8, 0, ch - HUD_H);
-  groundGrad.addColorStop(0, "#2e1040");
+  groundGrad.addColorStop(0, "#3e1060");
   groundGrad.addColorStop(1, "#1e0828");
   ctx.fillStyle = groundGrad;
   ctx.fillRect(0, ch - HUD_H - 4, cw, 4);
@@ -420,10 +901,13 @@ function drawTiles(
   ctx: CanvasRenderingContext2D,
   chunks: Chunk[],
   worldX: number,
-  ch: number
+  ch: number,
+  tick: number
 ): void {
-  const screenOffX = worldX % TILE;
   const groundY = ch - HUD_H;
+  const gt = getGroundTile();
+  const pt = getPlatformTile();
+
   for (const chunk of chunks) {
     for (let row = 0; row < CHUNK_ROWS; row++) {
       for (let cc = 0; cc < CHUNK_COLS; cc++) {
@@ -436,19 +920,13 @@ function drawTiles(
 
         switch (t) {
           case T_GROUND:
-            ctx.fillStyle = "#2a1035";
-            ctx.fillRect(wx, wy, TILE, TILE);
-            ctx.fillStyle = "#3d1a52";
-            ctx.fillRect(wx, wy, TILE, 4);
-            ctx.fillStyle = "rgba(255,255,255,0.06)";
-            ctx.fillRect(wx + 1, wy + 1, 3, TILE - 2);
+            ctx.drawImage(gt, wx, wy, TILE, TILE);
             break;
+
           case T_PLATFORM:
-            ctx.fillStyle = "#5a2a80";
-            ctx.fillRect(wx, wy, TILE, 6);
-            ctx.fillStyle = "#7a3aaa";
-            ctx.fillRect(wx, wy, TILE, 2);
+            ctx.drawImage(pt, wx, wy, TILE, 8);
             break;
+
           case T_SPIKE:
             ctx.fillStyle = "#cc4444";
             ctx.beginPath();
@@ -465,12 +943,14 @@ function drawTiles(
             ctx.closePath();
             ctx.fill();
             break;
+
           case T_TORCH: {
             ctx.fillStyle = "#5a3a10";
             ctx.fillRect(wx + 12, wy + 4, 8, 20);
-            ctx.fillStyle = "#ff8800";
+            const flickerA = 0.7 + 0.3 * Math.sin(tick * 0.14);
+            ctx.fillStyle = `rgba(255,136,0,${flickerA})`;
             ctx.shadowColor = "#ff8800";
-            ctx.shadowBlur = 8;
+            ctx.shadowBlur = 10 + 4 * Math.sin(tick * 0.17);
             ctx.beginPath();
             ctx.arc(wx + 16, wy + 4, 5, 0, Math.PI * 2);
             ctx.fill();
@@ -481,7 +961,6 @@ function drawTiles(
       }
     }
   }
-  void screenOffX; // suppress unused
 }
 
 function drawCoins(
@@ -495,17 +974,11 @@ function drawCoins(
       if (!coin.alive) continue;
       const sx = coin.x - worldX;
       const sy = coin.y + Math.sin(tick * 0.005 + coin.id) * 3;
-      ctx.fillStyle = "#ff5722";
-      ctx.shadowColor = "#ff5722";
-      ctx.shadowBlur = 6;
-      ctx.beginPath();
-      ctx.arc(sx, sy, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = "#ffaa66";
-      ctx.beginPath();
-      ctx.arc(sx - 1.5, sy - 1.5, 2, 0, Math.PI * 2);
-      ctx.fill();
+      // animated 4-frame coin
+      const frame = Math.floor(tick / 8) % 4;
+      const cf = COIN_FRAMES[frame]!;
+      // center the 5×5 sprite (at PIXEL scale = 15×15) around sx,sy
+      drawSprite(ctx, cf, COIN_PALETTE, sx - cf[0]!.length * PIXEL / 2, sy - cf.length * PIXEL / 2, PIXEL);
     }
   }
 }
@@ -522,133 +995,58 @@ function drawEnemies(
       const sx = enemy.x - worldX;
       const sy = enemy.y;
 
-      ctx.save();
       switch (enemy.kind) {
         case "zombie": {
-          // body
-          ctx.fillStyle = "#447744";
-          ctx.fillRect(sx - 7, sy - 20, 14, 12);
-          // head
-          ctx.fillStyle = "#55aa55";
-          ctx.beginPath();
-          ctx.arc(sx, sy - 24, 7, 0, Math.PI * 2);
-          ctx.fill();
-          // eyes
-          ctx.fillStyle = "#ff4400";
-          ctx.fillRect(sx - 4, sy - 26, 2, 3);
-          ctx.fillRect(sx + 2, sy - 26, 2, 3);
-          // arms outstretched
-          const aAnim = Math.sin(tick * 0.008) * 0.3;
-          ctx.fillStyle = "#447744";
-          ctx.save();
-          ctx.translate(sx - 7, sy - 14);
-          ctx.rotate(-0.5 - aAnim);
-          ctx.fillRect(-10, -2, 10, 4);
-          ctx.restore();
-          ctx.save();
-          ctx.translate(sx + 7, sy - 14);
-          ctx.rotate(0.5 + aAnim);
-          ctx.fillRect(0, -2, 10, 4);
-          ctx.restore();
-          // legs
-          ctx.fillStyle = "#336633";
-          const lAnim = Math.sin(tick * 0.012) * 4;
-          ctx.fillRect(sx - 6, sy - 8, 5, 8 + lAnim);
-          ctx.fillRect(sx + 1, sy - 8, 5, 8 - lAnim);
+          const frame = Math.floor(tick / 12) % 2;
+          const sprite = ZOMBIE_FRAMES[frame]!;
+          const cols = sprite[0]!.length;
+          const rows = sprite.length;
+          // shadow glow
+          ctx.shadowColor = "#33aa33";
+          ctx.shadowBlur = 6;
+          drawSprite(ctx, sprite, ZOMBIE_PALETTE, sx - cols * PIXEL / 2, sy - rows * PIXEL, PIXEL, true);
+          ctx.shadowBlur = 0;
           break;
         }
         case "bat": {
-          const bsy = sy + Math.sin(tick * 0.007 + enemy.sinOffset) * 8;
-          ctx.fillStyle = "#cc3300";
+          const batY = sy + Math.sin(tick * 0.07 + enemy.sinOffset) * 8;
+          const frame = Math.floor(tick / 8) % 2;
+          const sprite = BAT_FRAMES[frame]!;
+          const cols = sprite[0]!.length;
+          const rows = sprite.length;
           ctx.shadowColor = "#ff4400";
-          ctx.shadowBlur = 6;
-          ctx.beginPath();
-          ctx.ellipse(sx, bsy, 6, 5, 0, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.shadowBlur = 8;
+          drawSprite(ctx, sprite, BAT_PALETTE, sx - cols * PIXEL / 2, batY - rows * PIXEL / 2, PIXEL);
           ctx.shadowBlur = 0;
-          // wings flap
-          const wingFlap = Math.sin(tick * 0.016) * 0.4;
-          ctx.fillStyle = "#aa2200";
-          ctx.save();
-          ctx.translate(sx, bsy);
-          ctx.rotate(-wingFlap);
-          ctx.beginPath();
-          ctx.moveTo(-6, 0);
-          ctx.quadraticCurveTo(-14, -10, -18, -2);
-          ctx.quadraticCurveTo(-14, -1, -6, 0);
-          ctx.fill();
-          ctx.restore();
-          ctx.save();
-          ctx.translate(sx, bsy);
-          ctx.rotate(wingFlap);
-          ctx.beginPath();
-          ctx.moveTo(6, 0);
-          ctx.quadraticCurveTo(14, -10, 18, -2);
-          ctx.quadraticCurveTo(14, -1, 6, 0);
-          ctx.fill();
-          ctx.restore();
-          // eyes
-          ctx.fillStyle = "#ff6600";
-          ctx.beginPath();
-          ctx.arc(sx - 2, bsy - 2, 1.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.arc(sx + 2, bsy - 2, 1.5, 0, Math.PI * 2);
-          ctx.fill();
           break;
         }
         case "skeleton": {
-          // body — bony torso
-          ctx.fillStyle = "#ddddcc";
-          ctx.fillRect(sx - 5, sy - 18, 10, 10);
-          // rib lines
-          ctx.strokeStyle = "#bbbbaa";
-          ctx.lineWidth = 1;
-          for (let r = 0; r < 3; r++) {
-            ctx.beginPath();
-            ctx.moveTo(sx - 5, sy - 16 + r * 3);
-            ctx.lineTo(sx + 5, sy - 16 + r * 3);
-            ctx.stroke();
-          }
-          // head skull
-          ctx.fillStyle = "#eeeecc";
-          ctx.beginPath();
-          ctx.arc(sx, sy - 24, 7, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#222";
-          ctx.fillRect(sx - 3, sy - 25, 2, 3);
-          ctx.fillRect(sx + 1, sy - 25, 2, 3);
-          ctx.fillRect(sx - 2, sy - 22, 5, 1.5);
-          // shield
+          const frame = Math.floor(tick / 14) % 2;
+          const sprite = SKELETON_FRAMES[frame]!;
+          const cols = sprite[0]!.length;
+          const rows = sprite.length;
+          ctx.shadowColor = "#aabbdd";
+          ctx.shadowBlur = 5;
+          drawSprite(ctx, sprite, SKELETON_PALETTE, sx - cols * PIXEL / 2, sy - rows * PIXEL, PIXEL, true);
+          ctx.shadowBlur = 0;
+          // shield overlay
           if (enemy.shieldUp) {
-            ctx.fillStyle = "#7788aa";
+            ctx.fillStyle = "rgba(100,120,180,0.35)";
             ctx.strokeStyle = "#aabbdd";
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.moveTo(sx - 10, sy - 20);
-            ctx.lineTo(sx - 16, sy - 14);
-            ctx.lineTo(sx - 14, sy - 6);
-            ctx.lineTo(sx - 8, sy - 4);
-            ctx.lineTo(sx - 6, sy - 10);
+            ctx.moveTo(sx - cols * PIXEL / 2 - 8, sy - rows * PIXEL);
+            ctx.lineTo(sx - cols * PIXEL / 2 - 14, sy - rows * PIXEL * 0.6);
+            ctx.lineTo(sx - cols * PIXEL / 2 - 12, sy - rows * PIXEL * 0.1);
+            ctx.lineTo(sx - cols * PIXEL / 2 - 5, sy);
+            ctx.lineTo(sx - cols * PIXEL / 2 - 3, sy - rows * PIXEL * 0.4);
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
           }
-          // sword
-          ctx.strokeStyle = "#ccddff";
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(sx + 6, sy - 18);
-          ctx.lineTo(sx + 16, sy - 8);
-          ctx.stroke();
-          // legs
-          ctx.fillStyle = "#ddddcc";
-          ctx.fillRect(sx - 5, sy - 8, 4, 8);
-          ctx.fillRect(sx + 1, sy - 8, 4, 8);
           break;
         }
       }
-      ctx.restore();
     }
   }
 }
@@ -662,80 +1060,53 @@ function drawPlayer(
   const x = screenX;
   const y = player.y;
   const sliding = player.sliding;
+  const attacking = player.attackTimer > 0;
 
   ctx.save();
-
-  if (sliding) {
-    ctx.translate(x, y - 6);
-    ctx.rotate(0.4);
-  } else {
-    ctx.translate(x, y);
-  }
-
   ctx.shadowColor = "#8844ff";
-  ctx.shadowBlur = 8;
+  ctx.shadowBlur = 10;
 
-  const runFrame = Math.floor(tick / 7) % 6;
-  const legSwing = Math.sin((runFrame / 6) * Math.PI * 2) * 5;
-
-  if (!sliding) {
-    // legs
-    ctx.fillStyle = "#334466";
-    ctx.fillRect(-4, -8, 3, 8 + legSwing);
-    ctx.fillRect(1, -8, 3, 8 - legSwing);
-  } else {
-    // legs flat in slide
-    ctx.fillStyle = "#334466";
-    ctx.fillRect(-10, -4, 20, 4);
-  }
-
-  // torso
-  ctx.fillStyle = "#4466aa";
   if (sliding) {
-    ctx.fillRect(-10, -12, 20, 8);
-  } else {
-    ctx.fillRect(-5, -20, 10, 12);
-  }
+    // slide sprite: 10 cols × 6 rows at PIXEL scale
+    const sprite = KNIGHT_SLIDE;
+    const cols = sprite[0]!.length;
+    const rows = sprite.length;
+    drawSprite(ctx, sprite, KNIGHT_PALETTE, x - cols * PIXEL / 2, y - rows * PIXEL, PIXEL);
+  } else if (attacking) {
+    // attack swing: show swing trail arc + attack sprite
+    const swingProgress = player.swingAngle / (Math.PI / 2);
 
-  // arms
-  ctx.fillStyle = "#3355aa";
-  if (player.attackTimer > 0) {
-    // swing arc
-    const angle = -Math.PI * 0.5 + player.swingAngle;
+    // arc trail: white → transparent gradient
     ctx.save();
-    ctx.translate(5, -14);
-    ctx.rotate(angle);
-    ctx.fillRect(0, -3, 12, 3);
-    // sword
-    ctx.fillStyle = "#ccddff";
-    ctx.fillRect(10, -2, 14, 2);
+    ctx.globalAlpha = (1 - swingProgress) * 0.7;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 4;
+    ctx.shadowColor = "#ffffff";
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    const arcR = 20;
+    const arcStartAngle = -Math.PI * 0.85;
+    const arcEndAngle = arcStartAngle + player.swingAngle * 1.2;
+    ctx.arc(x + 4, y - 14, arcR, arcStartAngle, arcEndAngle);
+    ctx.stroke();
     ctx.restore();
-  } else {
-    if (!sliding) {
-      ctx.fillRect(-8, -18, 3, 8);
-      // sword at rest
-      ctx.fillStyle = "#ccddff";
-      ctx.fillRect(5, -20, 3, 12);
-    }
-  }
 
-  // helm
-  ctx.fillStyle = "#888aaa";
-  if (sliding) {
-    ctx.fillRect(-7, -20, 14, 10);
+    // attack sprite
+    drawSprite(ctx, KNIGHT_ATTACK, KNIGHT_PALETTE, x - 8 * PIXEL / 2, y - 8 * PIXEL, PIXEL);
+  } else if (!player.onGround) {
+    // jump sprite
+    const sprite = KNIGHT_JUMP;
+    const cols = sprite[0]!.length;
+    const rows = sprite.length;
+    drawSprite(ctx, sprite, KNIGHT_PALETTE, x - cols * PIXEL / 2, y - rows * PIXEL, PIXEL);
   } else {
-    ctx.fillRect(-5, -30, 10, 12);
+    // run cycle: 4 frames
+    const frame = Math.floor(tick / 6) % 4;
+    const sprite = KNIGHT_RUN[frame]!;
+    const cols = sprite[0]!.length;
+    const rows = sprite.length;
+    drawSprite(ctx, sprite, KNIGHT_PALETTE, x - cols * PIXEL / 2, y - rows * PIXEL, PIXEL);
   }
-  // visor slit
-  ctx.fillStyle = "#222";
-  ctx.fillRect(-3, sliding ? -16 : -26, 6, 3);
-  // glow eyes
-  ctx.fillStyle = "#ff5722";
-  ctx.shadowColor = "#ff5722";
-  ctx.shadowBlur = 4;
-  ctx.fillRect(-2, sliding ? -16 : -26, 2, 2);
-  ctx.fillRect(1, sliding ? -16 : -26, 2, 2);
-  ctx.shadowBlur = 0;
 
   ctx.restore();
 }
@@ -757,6 +1128,26 @@ function drawParticles(
   ctx.globalAlpha = 1;
 }
 
+function drawFloatTexts(
+  ctx: CanvasRenderingContext2D,
+  floats: FloatText[],
+  worldX: number
+): void {
+  ctx.font = "bold 13px monospace";
+  ctx.textAlign = "center";
+  for (const ft of floats) {
+    if (ft.life <= 0) continue;
+    ctx.globalAlpha = ft.life;
+    ctx.fillStyle = "#ffdd00";
+    ctx.shadowColor = "#ffaa00";
+    ctx.shadowBlur = 6;
+    ctx.fillText(ft.text, ft.x - worldX, ft.y);
+  }
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "left";
+}
+
 function drawHUD(
   ctx: CanvasRenderingContext2D,
   cw: number,
@@ -764,7 +1155,8 @@ function drawHUD(
   distance: number,
   score: number,
   coins: number,
-  best: number
+  best: number,
+  difficulty: Difficulty
 ): void {
   ctx.fillStyle = "rgba(20,4,26,0.82)";
   ctx.fillRect(0, 0, cw, HUD_H);
@@ -788,10 +1180,17 @@ function drawHUD(
   ctx.fillStyle = "#ff5722";
   ctx.font = "bold 11px monospace";
   ctx.textAlign = "right";
-  ctx.fillText(`${coins}c`, cw - 8, 16);
+  ctx.fillText(`${coins}c`, cw - 54, 16);
   ctx.fillStyle = "rgba(255,255,255,0.4)";
   ctx.font = "8px monospace";
-  ctx.fillText(`B:${best}`, cw - 8, 28);
+  ctx.fillText(`B:${best}`, cw - 54, 28);
+
+  // difficulty badge
+  const diffColor: Record<Difficulty, string> = { easy: "#44cc44", medium: "#ffaa00", hard: "#ff3333" };
+  ctx.fillStyle = diffColor[difficulty]!;
+  ctx.font = "bold 8px monospace";
+  ctx.textAlign = "right";
+  ctx.fillText(difficulty.toUpperCase(), cw - 8, 20);
 
   ctx.textAlign = "left";
 }
@@ -804,20 +1203,24 @@ function drawGameArea(
   chunks: Chunk[],
   player: Player,
   particles: Particle[],
+  floatTexts: FloatText[],
+  fogParticles: FogParticle[],
   playerScreenX: number,
   tick: number,
   distance: number,
   score: number,
   coins: number,
-  best: number
+  best: number,
+  difficulty: Difficulty
 ): void {
-  drawParallax(ctx, cw, ch, worldX);
-  drawTiles(ctx, chunks, worldX, ch);
+  drawParallax(ctx, cw, ch, worldX, fogParticles, tick);
+  drawTiles(ctx, chunks, worldX, ch, tick);
   drawCoins(ctx, chunks, worldX, tick);
   drawEnemies(ctx, chunks, worldX, tick);
   drawParticles(ctx, particles, worldX);
+  drawFloatTexts(ctx, floatTexts, worldX);
   drawPlayer(ctx, player, playerScreenX, tick);
-  drawHUD(ctx, cw, ch, distance, score, coins, best);
+  drawHUD(ctx, cw, ch, distance, score, coins, best, difficulty);
 }
 
 // ─── game over overlay DOM ────────────────────────────────────────────────────
@@ -841,16 +1244,19 @@ function showGameoverOverlay(
   distance: number,
   kills: number,
   coinsCollected: number,
+  difficulty: Difficulty,
   onReplay: () => void
 ): { el: HTMLElement; addRank: (r: RankInfo) => void } {
   const isNew = score >= best && score > 0;
+  const multStr = DIFFICULTY[difficulty].scoreMultiplier === 1 ? "" :
+    ` <span style="font-size:12px;color:#ffaa00">×${DIFFICULTY[difficulty].scoreMultiplier}</span>`;
   const overlay = document.createElement("div");
   overlay.className = "cr-gameover";
   overlay.innerHTML = `
     <div class="cr-go-box">
       <h2 class="cr-go-title">GAME OVER</h2>
       ${isNew ? `<div class="cr-go-new">NEW BEST!</div>` : ""}
-      <div class="cr-go-score">${score}</div>
+      <div class="cr-go-score">${score}${multStr}</div>
       <div class="cr-go-sublabel">SCORE</div>
       <div class="cr-go-stats">
         <span>${Math.floor(distance)}m</span>
@@ -893,6 +1299,51 @@ function showGameoverOverlay(
   return { el: overlay, addRank };
 }
 
+// ─── difficulty dialog ────────────────────────────────────────────────────────
+
+function showDifficultyDialog(
+  container: HTMLElement,
+  current: Difficulty,
+  onSelect: (d: Difficulty) => void
+): void {
+  // remove existing
+  container.querySelector(".cr-diff-dialog")?.remove();
+
+  const dialog = document.createElement("div");
+  dialog.className = "cr-diff-dialog";
+  dialog.innerHTML = `
+    <div class="cr-diff-box">
+      <div class="cr-diff-title">DIFFICULTY</div>
+      <button class="btn cr-diff-opt${current === "easy" ? " cr-diff-active" : ""}" data-diff="easy">
+        EASY <span class="cr-diff-sub">x1 score</span>
+      </button>
+      <button class="btn cr-diff-opt${current === "medium" ? " cr-diff-active" : ""}" data-diff="medium">
+        MEDIUM <span class="cr-diff-sub">x1.5 score</span>
+      </button>
+      <button class="btn cr-diff-opt${current === "hard" ? " cr-diff-active" : ""}" data-diff="hard">
+        HARD <span class="cr-diff-sub">x2.5 score</span>
+      </button>
+      <button class="btn cr-diff-cancel" id="cr-diff-close">CANCEL</button>
+    </div>
+  `;
+  container.appendChild(dialog);
+
+  dialog.querySelectorAll<HTMLElement>(".cr-diff-opt").forEach((btn) => {
+    btn.addEventListener("pointerup", (e) => {
+      e.stopPropagation();
+      const d = btn.dataset["diff"] as Difficulty | undefined;
+      if (d) {
+        dialog.remove();
+        onSelect(d);
+      }
+    });
+  });
+  dialog.querySelector("#cr-diff-close")?.addEventListener("pointerup", (e) => {
+    e.stopPropagation();
+    dialog.remove();
+  });
+}
+
 // ─── onboarding hint ──────────────────────────────────────────────────────────
 
 function maybeShowHint(container: HTMLElement): HTMLElement | null {
@@ -921,6 +1372,10 @@ function injectStyles(): void {
   background: #14041a; z-index: 2; }
 .cr-hud-btn { min-width: 44px; min-height: 44px; background: transparent;
   border: none; color: #ff5722; font-size: 18px; cursor: pointer; padding: 0 8px; }
+.cr-hud-diff { min-width: 52px; min-height: 44px; background: transparent;
+  border: 1px solid rgba(255,87,34,0.4); border-radius: 6px;
+  color: #ff5722; font-family: monospace; font-size: 10px; font-weight: bold;
+  cursor: pointer; padding: 0 6px; letter-spacing: 1px; }
 .cr-canvas-wrap { flex: 1; min-height: 0; position: relative; overflow: hidden; }
 .cr-canvas { display: block; }
 .cr-gameover {
@@ -960,6 +1415,21 @@ function injectStyles(): void {
 .cr-rank-delta { font-family: monospace; font-size: 11px; color: rgba(255,255,255,0.7);
   margin-top: 4px; }
 .rank-card-btn { min-height: 36px; margin-top: 8px; font-size: 11px; }
+.cr-diff-dialog {
+  position: absolute; inset: 0; background: rgba(20,4,26,0.88);
+  display: flex; align-items: center; justify-content: center; z-index: 20; }
+.cr-diff-box {
+  background: #1e0830; border: 2px solid #7744aa; border-radius: 12px;
+  padding: 20px 24px; text-align: center; color: #fff; width: 80%; max-width: 280px;
+  display: flex; flex-direction: column; gap: 10px; }
+.cr-diff-title { font-family: monospace; font-size: 16px; font-weight: bold;
+  color: #cc88ff; letter-spacing: 2px; margin-bottom: 4px; }
+.cr-diff-opt { min-height: 44px; font-family: monospace; font-size: 13px;
+  font-weight: bold; letter-spacing: 1px; }
+.cr-diff-active { border-color: #cc88ff !important; color: #cc88ff !important; }
+.cr-diff-sub { font-size: 10px; font-weight: normal; opacity: 0.7; margin-left: 6px; }
+.cr-diff-cancel { min-height: 40px; font-family: monospace; font-size: 11px;
+  opacity: 0.7; }
 `;
   document.head.appendChild(s);
 }
@@ -982,7 +1452,8 @@ export function mount(container: HTMLElement): () => void {
   hud.className = "cr-hud";
   hud.innerHTML = `
     <span style="font-family:monospace;font-size:12px;color:#ff5722;letter-spacing:1px">CRYPT RUN</span>
-    <div style="display:flex;gap:4px">
+    <div style="display:flex;gap:4px;align-items:center">
+      <button class="cr-hud-diff" id="cr-diff" aria-label="Difficulty">DIFF</button>
       <button class="cr-hud-btn" id="cr-fs" aria-label="Fullscreen">&#x26F6;</button>
       <button class="cr-hud-btn" id="cr-pause" aria-label="Pause">&#x23F8;</button>
     </div>
@@ -1000,6 +1471,14 @@ export function mount(container: HTMLElement): () => void {
   const ctxRaw = canvas.getContext("2d");
   if (!ctxRaw) throw new Error("No 2D context");
   const ctx: CanvasRenderingContext2D = ctxRaw;
+
+  // ── difficulty state ──
+  let currentDifficulty: Difficulty = "medium";
+  void db.settings.get("crypt-run:difficulty").then((row) => {
+    if (row && (row.value === "easy" || row.value === "medium" || row.value === "hard")) {
+      currentDifficulty = row.value as Difficulty;
+    }
+  });
 
   // ── game state ──
   let phase: Phase = "idle";
@@ -1022,7 +1501,10 @@ export function mount(container: HTMLElement): () => void {
 
   let chunks: Chunk[] = [];
   let particles: Particle[] = [];
+  let floatTexts: FloatText[] = [];
+  let fogParticles: FogParticle[] = [];
   let nextChunkCol = 0;
+  let dustFrameCounter = 0;
 
   let player: Player = makePlayer(0, 0);
   let playerScreenX = 0;
@@ -1056,6 +1538,10 @@ export function mount(container: HTMLElement): () => void {
     };
   }
 
+  function activeDiff(): DifficultyParams {
+    return DIFFICULTY[currentDifficulty];
+  }
+
   function initWorld(): void {
     worldX = 0;
     distance = 0;
@@ -1064,19 +1550,22 @@ export function mount(container: HTMLElement): () => void {
     kills = 0;
     chunks = [];
     particles = [];
+    floatTexts = [];
     nextChunkCol = 0;
+    dustFrameCounter = 0;
+    fogParticles = initFog(canvasW, canvasH);
 
     playerScreenX = Math.round(canvasW * PLAYER_X_RATIO);
     const groundY = canvasH - HUD_H;
     player = makePlayer(playerScreenX + worldX, groundY - TILE);
     player.onGround = true;
 
-    // seed initial chunks
     for (let i = 0; i < LOOKAHEAD_CHUNKS + 1; i++) addChunk();
   }
 
   function addChunk(): void {
-    const tiles = buildChunk(nextChunkCol);
+    const diff = activeDiff();
+    const tiles = buildChunk(nextChunkCol, diff);
     const chunk: Chunk = {
       col: nextChunkCol,
       tiles,
@@ -1086,7 +1575,7 @@ export function mount(container: HTMLElement): () => void {
     const groundY = canvasH - HUD_H;
     coinsFromTiles(chunk, groundY);
     if (nextChunkCol > CHUNK_COLS * 2) {
-      if (Math.random() < 0.7) spawnEnemyForChunk(chunk, canvasH);
+      spawnEnemyForChunk(chunk, canvasH, diff);
     }
     chunks.push(chunk);
     nextChunkCol += CHUNK_COLS;
@@ -1115,14 +1604,12 @@ export function mount(container: HTMLElement): () => void {
   function checkAutoAttack(): void {
     if (player.attackCooldown > 0) return;
     const pr = playerRect(player);
-    const frontX = pr.x + pr.w + ATTACK_RANGE;
     const meleeFront: Rect = {
       x: pr.x + pr.w,
       y: pr.y - pr.h * 0.5,
       w: ATTACK_RANGE,
       h: pr.h * 1.5,
     };
-    void frontX;
 
     for (const chunk of chunks) {
       for (const enemy of chunk.enemies) {
@@ -1136,7 +1623,6 @@ export function mount(container: HTMLElement): () => void {
   }
 
   function applyAttackDamage(): void {
-    // damage fires at ATTACK_DAMAGE_FRAME_MS into the swing
     if (player.attackTimer <= 0) return;
     const alreadyDamaged = player.attackTimer <= ATTACK_SWING_MS - ATTACK_DAMAGE_FRAME_MS;
     if (!alreadyDamaged) return;
@@ -1177,7 +1663,6 @@ export function mount(container: HTMLElement): () => void {
   function checkHazards(): void {
     const pr = playerRect(player);
     const groundY = canvasH - HUD_H;
-    // spikes
     for (const chunk of chunks) {
       for (let row = 0; row < CHUNK_ROWS; row++) {
         for (let cc = 0; cc < CHUNK_COLS; cc++) {
@@ -1191,12 +1676,10 @@ export function mount(container: HTMLElement): () => void {
         }
       }
     }
-    // enemy touch
     for (const chunk of chunks) {
       for (const enemy of chunk.enemies) {
         if (!enemy.alive) continue;
         if (rectsOverlap(pr, enemyRect(enemy))) {
-          // only hurt if not in active attack frame
           if (player.attackTimer <= 0 || player.attackTimer > ATTACK_SWING_MS - ATTACK_DAMAGE_FRAME_MS) {
             player.alive = false;
             return;
@@ -1216,7 +1699,15 @@ export function mount(container: HTMLElement): () => void {
           coin.alive = false;
           coinCount++;
           score += 5;
-          spawnParticles(particles, coin.x, coin.y, "#ff5722", 4);
+          // coin pickup: 6 yellow scatter particles + float text
+          spawnParticles(particles, coin.x, coin.y, "#ffcc00", 6);
+          floatTexts.push({
+            x: coin.x,
+            y: coin.y - 10,
+            text: "+5",
+            life: 1,
+            maxLife: 500,
+          });
           if (navigator.vibrate) navigator.vibrate(3);
         }
       }
@@ -1243,10 +1734,11 @@ export function mount(container: HTMLElement): () => void {
 
     tick++;
     const dtS = dt / 1000;
+    const diff = activeDiff();
 
-    // scroll world
-    worldX += RUN_SPEED * dtS;
-    distance += RUN_SPEED * dtS / 100;
+    // scroll world using difficulty speed
+    worldX += diff.runSpeed * dtS;
+    distance += diff.runSpeed * dtS / 100;
 
     // player position in world
     playerScreenX = Math.round(canvasW * PLAYER_X_RATIO);
@@ -1288,6 +1780,17 @@ export function mount(container: HTMLElement): () => void {
     // tile collision
     resolvePlayerTiles(player, chunks, prevY, canvasH - HUD_H);
 
+    // dust particles when running on ground
+    if (player.onGround && !player.sliding) {
+      dustFrameCounter++;
+      if (dustFrameCounter >= 6) {
+        dustFrameCounter = 0;
+        spawnDustParticles(particles, player.x, player.y);
+      }
+    } else {
+      dustFrameCounter = 0;
+    }
+
     // attack swing animation
     if (player.attackTimer > 0) {
       player.attackTimer -= dt;
@@ -1304,7 +1807,7 @@ export function mount(container: HTMLElement): () => void {
       for (const enemy of chunk.enemies) {
         if (!enemy.alive) continue;
         if (enemy.kind === "zombie") {
-          enemy.x -= (RUN_SPEED * 0.2) * dtS;
+          enemy.x -= (diff.runSpeed * 0.2) * dtS;
         } else if (enemy.kind === "bat") {
           enemy.y += Math.sin(tick * 0.08 + enemy.sinOffset) * 1.2;
         }
@@ -1327,8 +1830,24 @@ export function mount(container: HTMLElement): () => void {
       p.life -= dt / p.maxLife;
     }
 
-    // distance score
-    score = Math.round(distance * 1 + kills * 50 + coinCount * 5);
+    // float texts
+    for (const ft of floatTexts) {
+      if (ft.life <= 0) continue;
+      const progress = 1 - ft.life;
+      ft.y -= 40 * dtS; // float upward 40px total
+      ft.life -= dt / ft.maxLife;
+      void progress;
+    }
+
+    // fog movement
+    for (const fp of fogParticles) {
+      fp.x += fp.speed * dtS;
+      if (fp.x > canvasW + fp.w) fp.x = -fp.w;
+    }
+
+    // distance score with multiplier
+    const mult = diff.scoreMultiplier;
+    score = Math.round((distance * 1 + kills * 50 + coinCount * 5) * mult);
 
     // chunk management
     ensureChunks();
@@ -1373,6 +1892,7 @@ export function mount(container: HTMLElement): () => void {
       distance,
       kills,
       coinCount,
+      currentDifficulty,
       startGame
     );
 
@@ -1415,8 +1935,8 @@ export function mount(container: HTMLElement): () => void {
     ctx.clearRect(0, 0, canvasW, canvasH);
 
     if (phase === "idle") {
-      drawParallax(ctx, canvasW, canvasH, 0);
-      drawHUD(ctx, canvasW, canvasH, 0, 0, 0, best);
+      drawParallax(ctx, canvasW, canvasH, 0, fogParticles, tick);
+      drawHUD(ctx, canvasW, canvasH, 0, 0, 0, best, currentDifficulty);
       ctx.fillStyle = "rgba(20,4,26,0.4)";
       ctx.fillRect(0, HUD_H, canvasW, canvasH - HUD_H);
       ctx.textAlign = "center";
@@ -1435,16 +1955,16 @@ export function mount(container: HTMLElement): () => void {
     } else if (phase === "playing" || phase === "gameover") {
       drawGameArea(
         ctx, canvasW, canvasH,
-        worldX, chunks, player, particles,
+        worldX, chunks, player, particles, floatTexts, fogParticles,
         playerScreenX, tick,
-        distance, score, coinCount, best
+        distance, score, coinCount, best, currentDifficulty
       );
     } else if (phase === "paused") {
       drawGameArea(
         ctx, canvasW, canvasH,
-        worldX, chunks, player, particles,
+        worldX, chunks, player, particles, floatTexts, fogParticles,
         playerScreenX, tick,
-        distance, score, coinCount, best
+        distance, score, coinCount, best, currentDifficulty
       );
       ctx.fillStyle = "rgba(20,4,26,0.65)";
       ctx.fillRect(0, HUD_H, canvasW, canvasH - HUD_H);
@@ -1480,6 +2000,7 @@ export function mount(container: HTMLElement): () => void {
     if (phase === "idle") {
       playerScreenX = Math.round(canvasW * PLAYER_X_RATIO);
       player = makePlayer(playerScreenX, canvasH - HUD_H - TILE);
+      fogParticles = initFog(canvasW, canvasH);
     }
     drawFrame(0);
   }
@@ -1490,7 +2011,11 @@ export function mount(container: HTMLElement): () => void {
 
   // ── input ──
   function onPointerDown(e: PointerEvent): void {
-    if (e.target === hud.querySelector("#cr-fs") || e.target === hud.querySelector("#cr-pause")) return;
+    if (
+      e.target === hud.querySelector("#cr-fs") ||
+      e.target === hud.querySelector("#cr-pause") ||
+      e.target === hud.querySelector("#cr-diff")
+    ) return;
     touchStartY = e.clientY;
     touchStartTime = performance.now();
     touchHolding = true;
@@ -1563,6 +2088,20 @@ export function mount(container: HTMLElement): () => void {
     e.stopPropagation();
     if (phase === "playing") { paused = true; phase = "paused"; }
     else if (phase === "paused") { paused = false; phase = "playing"; }
+  });
+
+  hud.querySelector("#cr-diff")?.addEventListener("pointerup", (e) => {
+    e.stopPropagation();
+    showDifficultyDialog(canvasWrap, currentDifficulty, (chosen) => {
+      currentDifficulty = chosen;
+      void db.settings.put({ key: "crypt-run:difficulty", value: chosen });
+      // restart run with new difficulty
+      if (phase === "playing" || phase === "paused") {
+        paused = false;
+        if (gameoverEl) { gameoverEl.el.remove(); gameoverEl = null; }
+        startGame();
+      }
+    });
   });
 
   // start RAF
