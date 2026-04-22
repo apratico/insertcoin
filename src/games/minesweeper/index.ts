@@ -797,7 +797,6 @@ export function mount(container: HTMLElement): () => void {
     let downC = -1;
     let downX = 0;
     let downY = 0;
-    let downTime = 0;
     let longPressHandle = 0;
     let longFired = false;
 
@@ -815,7 +814,6 @@ export function mount(container: HTMLElement): () => void {
       downC = pos.c;
       downX = e.clientX;
       downY = e.clientY;
-      downTime = e.timeStamp;
       longFired = false;
 
       longPressHandle = window.setTimeout(() => {
