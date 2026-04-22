@@ -2,6 +2,7 @@ import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- types ----------
 
@@ -844,6 +845,7 @@ export function mount(container: HTMLElement): () => void {
     phase = "waveComplete";
     score += wave * 50;
     scoreEl.textContent = String(score);
+    playSfx("levelup");
     vibrate([30, 30, 30]);
 
     waveBannerEl?.remove();
@@ -868,6 +870,7 @@ export function mount(container: HTMLElement): () => void {
     b.vy = Math.sin(heading) * BULLET_SPEED;
     b.alive = true;
     shots++;
+    playSfx("shoot");
     vibrate(6);
   }
 
@@ -1031,6 +1034,7 @@ export function mount(container: HTMLElement): () => void {
     shakeT = SHAKE_DURATION;
     gridPulse = 1;
 
+    playSfx("kill");
     vibrate(12);
   }
 
@@ -1062,6 +1066,8 @@ export function mount(container: HTMLElement): () => void {
           if (en.hp <= 0) {
             en.alive = false;
             onKill(en, en.x, en.y);
+          } else {
+            playSfx("hit");
           }
           break;
         }
@@ -1137,6 +1143,7 @@ export function mount(container: HTMLElement): () => void {
 
   function triggerGameover(): void {
     phase = "gameover";
+    playSfx("gameover");
     vibrate([50, 50, 100]);
     cancelAnimationFrame(rafId);
     void submit("tap-rotate", score);

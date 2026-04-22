@@ -1,6 +1,7 @@
 import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- types ----------
 
@@ -1101,6 +1102,7 @@ export function mount(container: HTMLElement): () => void {
     bouncesUsedThisLevel = 0;
     previewPts = [];
 
+    playSfx("shoot");
     if ("vibrate" in navigator) navigator.vibrate(10);
   }
 
@@ -1125,6 +1127,7 @@ export function mount(container: HTMLElement): () => void {
         spawnParticle(particles, t.x, t.y, "#44ff88", 10);
         spawnFloat(floats, t.x, t.y - 20, "+100");
         levelScore += 100;
+        playSfx("pop");
         if ("vibrate" in navigator) navigator.vibrate(15);
       }
     }
@@ -1133,6 +1136,7 @@ export function mount(container: HTMLElement): () => void {
   function onBulletBounce(bx: number, by: number, _nx: number, _ny: number): void {
     bouncesUsedThisLevel++;
     spawnParticle(particles, bx, by, "#ffd166", 4);
+    playSfx("bounce");
     if ("vibrate" in navigator) navigator.vibrate(4);
     shakeAmt = 3;
     shakeEnd = performance.now() + 80;
@@ -1191,6 +1195,7 @@ export function mount(container: HTMLElement): () => void {
           const elapsed = performance.now() - levelStartT;
           const bonus = calcLevelScore(currentLevel, bouncesUsedThisLevel, elapsed);
           levelScore += bonus;
+          playSfx("win");
           if ("vibrate" in navigator) navigator.vibrate([30, 60, 30, 60, 100]);
           void submit("one-bullet", totalScore + levelScore);
           setTimeout(() => {
@@ -1204,6 +1209,7 @@ export function mount(container: HTMLElement): () => void {
           }, 600);
         } else {
           phase = "levelfail";
+          playSfx("lose");
           if ("vibrate" in navigator) navigator.vibrate([60, 60]);
           setTimeout(() => {
             showFail(
@@ -1224,6 +1230,7 @@ export function mount(container: HTMLElement): () => void {
         const elapsed = performance.now() - levelStartT;
         const bonus = calcLevelScore(currentLevel, bouncesUsedThisLevel, elapsed);
         levelScore += bonus;
+        playSfx("win");
         if ("vibrate" in navigator) navigator.vibrate([30, 60, 30, 60, 100]);
         void submit("one-bullet", totalScore + levelScore);
         setTimeout(() => {

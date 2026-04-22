@@ -2,6 +2,7 @@ import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- types ----------
 
@@ -568,11 +569,13 @@ export function mount(container: HTMLElement): () => void {
       void cell.offsetWidth; // reflow to restart animation
       cell.classList.add("p15-shake");
       cell.addEventListener("animationend", () => cell.classList.remove("p15-shake"), { once: true });
+      playSfx("error");
       navigator.vibrate?.(4);
       return;
     }
 
     // Valid slide
+    playSfx("slide");
     navigator.vibrate?.(6);
 
     // Dismiss hint on first valid move
@@ -637,6 +640,7 @@ export function mount(container: HTMLElement): () => void {
     stopTimer();
     phase = "won";
     const score = calcScore(moves, elapsed);
+    playSfx("win");
     navigator.vibrate?.([30, 60, 30, 60, 100]);
     void clearSaved();
     void submit("15puzzle", score);

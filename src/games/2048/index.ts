@@ -2,6 +2,7 @@ import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- types ----------
 
@@ -847,6 +848,7 @@ export function mount(container: HTMLElement): () => void {
     scoreEl.textContent = String(score);
     bestEl.textContent = String(best);
 
+    if (gained > 0) playSfx("merge");
     if (gained >= 128) navigator.vibrate?.(25);
 
     flashEdge(wrap, dir);
@@ -859,6 +861,7 @@ export function mount(container: HTMLElement): () => void {
 
       if (!won && !keepGoing && hasWon(board)) {
         won = true;
+        playSfx("win");
         navigator.vibrate?.([30, 60, 30, 60, 100]);
         void saveState({ board, score, won, keepGoing });
         activeOverlay = showWinOverlay(
@@ -871,6 +874,7 @@ export function mount(container: HTMLElement): () => void {
       }
 
       if (!canMove(board)) {
+        playSfx("gameover");
         navigator.vibrate?.([50, 50, 100]);
         void submit("2048", score);
         void clearSaved();

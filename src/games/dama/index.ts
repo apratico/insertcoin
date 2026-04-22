@@ -1,5 +1,6 @@
 import { db } from "../../lib/storage.js";
 import { navigate } from "../../lib/router.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -438,6 +439,7 @@ function buildGame(
     phase = "animating";
     clearHighlights();
 
+    playSfx("place");
     animateMove(move, () => {
       // Fade out captured pieces
       animateCapture(move.captured, () => {
@@ -448,6 +450,7 @@ function buildGame(
 
         // Check chain capture
         if (move.captured.length > 0) {
+          playSfx("pop");
           const continuations = capturesForPiece(board, move.to);
           const wasJustKinged = (() => {
             const piece = board[move.to.row]![move.to.col];
@@ -479,6 +482,7 @@ function buildGame(
           if (winner === 1) score.p1++;
           else score.p2++;
           updateScoreDisplay();
+          playSfx("win");
           navigator.vibrate?.([40, 40, 100]);
           setTimeout(() => showRoundOverlay(winner), 500);
           phase = "roundover";

@@ -1,5 +1,6 @@
 import { db } from "../../lib/storage.js";
 import { navigate } from "../../lib/router.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -253,6 +254,7 @@ function buildGame(container: HTMLElement, showHintFirst: boolean): () => void {
     dismissHint();
 
     function tick(): void {
+      playSfx("countdown");
       navigator.vibrate?.(15);
       setCountDisplay(String(countdownValue));
       setLabel(labelP1, String(countdownValue), "tr-label-count");
@@ -286,6 +288,7 @@ function buildGame(container: HTMLElement, showHintFirst: boolean): () => void {
     setLabel(labelP1, "TAP!", "tr-label-go");
     setLabel(labelP2, "TAP!", "tr-label-go");
 
+    playSfx("go");
     navigator.vibrate?.(15);
 
     function rafLoop(): void {
@@ -316,10 +319,12 @@ function buildGame(container: HTMLElement, showHintFirst: boolean): () => void {
     if (t1 > t2) {
       winner = 0;
       players[0].roundWins++;
+      playSfx("win");
       navigator.vibrate?.([30, 30, 60]);
     } else if (t2 > t1) {
       winner = 1;
       players[1].roundWins++;
+      playSfx("win");
       navigator.vibrate?.([30, 30, 60]);
     } else {
       winner = "draw";
@@ -426,6 +431,7 @@ function buildGame(container: HTMLElement, showHintFirst: boolean): () => void {
     if (phase !== "go") return;
 
     players[pIdx].taps++;
+    playSfx("tap");
     navigator.vibrate?.(3);
 
     // Rate check

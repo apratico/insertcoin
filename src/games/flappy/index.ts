@@ -1,6 +1,7 @@
 import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- types ----------
 
@@ -459,6 +460,7 @@ export function mount(container: HTMLElement): () => void {
     pipes = buildPipes(canvasW, canvasH, currentGap);
     groundOffset = 0;
     bird.vy = FLAP_VY;
+    playSfx("flip");
     if ("vibrate" in navigator) navigator.vibrate(4);
     lastTime = performance.now();
   }
@@ -470,12 +472,14 @@ export function mount(container: HTMLElement): () => void {
     }
     if (phase === "gameover" || paused) return;
     bird.vy = FLAP_VY;
+    playSfx("flip");
     if ("vibrate" in navigator) navigator.vibrate(4);
   }
 
   function triggerGameover(): void {
     phase = "gameover";
     flashAlpha = 1;
+    playSfx("gameover");
     if ("vibrate" in navigator) navigator.vibrate([60, 60, 120]);
     void submit("flappy", score).then(() => {
       void personalBest("flappy").then((b) => {
@@ -573,6 +577,7 @@ export function mount(container: HTMLElement): () => void {
           if (score > best) best = score;
           const el = hud.querySelector<HTMLElement>("#flappy-best");
           if (el) el.textContent = String(best);
+          playSfx("score");
           if ("vibrate" in navigator) navigator.vibrate(8);
           // tighten gap after score 20
           currentGap = score >= PIPE_GAP_SCORE ? PIPE_GAP_HARD : PIPE_GAP_EASY;

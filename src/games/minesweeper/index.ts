@@ -2,6 +2,7 @@ import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- types ----------
 
@@ -718,6 +719,7 @@ export function mount(container: HTMLElement): () => void {
     }
 
     floodReveal(board, cfg.cols, cfg.rows, r, c);
+    playSfx("click");
     navigator.vibrate?.(10);
 
     if (cell.mine) {
@@ -725,6 +727,7 @@ export function mount(container: HTMLElement): () => void {
       explodedC = c;
       phase = "dead";
       stopTimer();
+      playSfx("gameover");
       navigator.vibrate?.([50, 50, 100]);
       renderBoard();
       shakeCanvas(cs!.canvas);
@@ -753,6 +756,7 @@ export function mount(container: HTMLElement): () => void {
     } else {
       cell.state = "hidden";
     }
+    playSfx("place");
     navigator.vibrate?.(5);
     updateMineCount();
     renderBoard();
@@ -767,6 +771,7 @@ export function mount(container: HTMLElement): () => void {
     if (countRevealed(board) === total - cfg.mines) {
       phase = "won";
       stopTimer();
+      playSfx("win");
       navigator.vibrate?.([30, 60, 30, 60, 100]);
       const score = calcScore(difficulty, elapsed);
       void submit("minesweeper", score);

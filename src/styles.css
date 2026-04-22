@@ -118,6 +118,32 @@ html, body {
   gap: 2px;
 }
 
+.header-top-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mute-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--fg);
+  flex-shrink: 0;
+}
+.mute-btn:active { background: var(--surface); }
+
 .nick-btn {
   background: transparent;
   border: 1px solid var(--border);

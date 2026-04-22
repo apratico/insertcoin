@@ -1,5 +1,6 @@
 import { db } from "../../lib/storage.js";
 import { navigate } from "../../lib/router.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -329,6 +330,7 @@ function buildGame(
 
     board[idx] = currentPlayer;
     renderCell(idx);
+    playSfx("place");
     navigator.vibrate?.(8);
 
     const wp = checkWin(board, currentPlayer);
@@ -344,6 +346,7 @@ function buildGame(
       updateScoreDisplay();
       updateBanners();
 
+      playSfx("win");
       navigator.vibrate?.([40, 40, 100]);
       setTimeout(() => showRoundOverlay(winner), 700);
       return;

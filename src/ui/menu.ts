@@ -5,10 +5,12 @@ import { personalBest } from "../lib/leaderboard.js";
 import { renderCover } from "./cover.js";
 import { db } from "../lib/storage.js";
 import { subscribeOnline, getOnlineCount } from "../lib/presence.js";
+import { isMuted, toggleMute, subscribeMute } from "../lib/audio.js";
 
 let root: HTMLElement | null = null;
 let unsubAuth: (() => void) | null = null;
 let unsubPresence: (() => void) | null = null;
+let unsubMute: (() => void) | null = null;
 
 const TAB_KEY = "menu:tab";
 let activeTab: GameCategory = "solo";
@@ -130,7 +132,10 @@ async function render(): Promise<void> {
           <h1 class="logo-text">INSERT COIN</h1>
         </div>
         <div class="header-right">
-          ${nicknameEditorHTML(profile.nickname)}
+          <div class="header-top-row">
+            ${nicknameEditorHTML(profile.nickname)}
+            <button class="mute-btn" id="mute-btn" aria-label="${isMuted() ? "Unmute" : "Mute"}">${isMuted() ? "🔇" : "🔊"}</button>
+          </div>
           <div class="online-count" id="online-count" aria-label="Players online">
             <span class="online-dot"></span>
             <span class="online-val" id="online-val">${getOnlineCount()}</span>
@@ -180,6 +185,12 @@ function attachHandlers(): void {
   const nickBtn = root.querySelector<HTMLElement>("#nick-btn");
   nickBtn?.addEventListener("pointerup", () => {
     openNickEditor();
+  });
+
+  // Mute button
+  const muteBtn = root.querySelector<HTMLElement>("#mute-btn");
+  muteBtn?.addEventListener("pointerup", () => {
+    void toggleMute();
   });
 
   // Trophy buttons — navigate to leaderboard without opening game
@@ -296,6 +307,14 @@ export function mountMenu(container: HTMLElement): void {
     const el = root?.querySelector<HTMLElement>("#online-val");
     if (el) el.textContent = String(n);
   });
+
+  unsubMute = subscribeMute((muted) => {
+    const btn = root?.querySelector<HTMLElement>("#mute-btn");
+    if (btn) {
+      btn.textContent = muted ? "🔇" : "🔊";
+      btn.setAttribute("aria-label", muted ? "Unmute" : "Mute");
+    }
+  });
 }
 
 export function unmountMenu(): void {
@@ -303,6 +322,8 @@ export function unmountMenu(): void {
   unsubAuth = null;
   unsubPresence?.();
   unsubPresence = null;
+  unsubMute?.();
+  unsubMute = null;
   if (root) root.innerHTML = "";
   root = null;
 }

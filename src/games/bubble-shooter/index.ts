@@ -1,6 +1,7 @@
 import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- constants ----------
 
@@ -711,6 +712,7 @@ export function mount(container: HTMLElement): () => void {
       color: state.currentColor,
     };
     state.shotCount++;
+    playSfx("shoot");
     if ("vibrate" in navigator) navigator.vibrate(6);
     dismissHint();
   }
@@ -805,6 +807,7 @@ export function mount(container: HTMLElement): () => void {
     state.score += Math.round(group.size * 10 * mult);
     for (const k of group) state.grid.delete(k);
 
+    playSfx("pop");
     if ("vibrate" in navigator) navigator.vibrate(Math.min(50, 15 + group.size * 2));
 
     // Drop orphans
@@ -840,8 +843,10 @@ export function mount(container: HTMLElement): () => void {
     state.phase = phase;
     void submit("bubble-shooter", state.score);
     if (phase === "won") {
+      playSfx("win");
       if ("vibrate" in navigator) navigator.vibrate([30, 60, 30, 60, 100]);
     } else {
+      playSfx("gameover");
       if ("vibrate" in navigator) navigator.vibrate([50, 50, 100]);
     }
     endOverlay = showEndOverlay(container, phase, state.score, state.best, restartGame);

@@ -1,6 +1,7 @@
 import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- types ----------
 
@@ -458,6 +459,7 @@ export function mount(container: HTMLElement): () => void {
         scoreEl.textContent = String(score);
         bestEl.textContent = String(best);
         state = { phase: "playing", score, best };
+        playSfx("coin");
         if ("vibrate" in navigator) navigator.vibrate?.(20);
       } else {
         snake = snake.slice(0, -1);
@@ -472,6 +474,7 @@ export function mount(container: HTMLElement): () => void {
 
   function endGame(): void {
     state = { phase: "gameover", score, best };
+    playSfx("gameover");
     if ("vibrate" in navigator) navigator.vibrate?.([50, 50, 100]);
     void submit("snake", score);
     gameoverOverlay = showGameover(container, score, best, restartGame);

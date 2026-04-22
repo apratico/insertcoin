@@ -2,6 +2,7 @@ import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- constants ----------
 
@@ -633,6 +634,7 @@ export function mount(container: HTMLElement): () => void {
 
     const now = performance.now();
     state.phase = "chain";
+    playSfx("pop");
     state.chainCount = 0;
     hud.bannerEl.textContent = "CHAIN!";
     hud.bannerEl.className = "cb-banner cb-banner-chain";
@@ -681,6 +683,7 @@ export function mount(container: HTMLElement): () => void {
     // Small delay then show overlay
     setTimeout(() => {
       if (cleared) {
+        playSfx("win");
         navigator.vibrate?.([30, 30, 100]);
         roundOverlayEl = showRoundOverlay(
           wrap,
@@ -693,6 +696,7 @@ export function mount(container: HTMLElement): () => void {
           () => {}
         );
       } else {
+        playSfx("lose");
         navigator.vibrate?.([80, 80, 200]);
         void submit("chain-blast", state.totalScore);
         void computeRank("chain-blast", state.totalScore).then((rank) => {

@@ -2,6 +2,7 @@ import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -1654,6 +1655,7 @@ export function mount(container: HTMLElement): () => void {
           score += reward;
           coinCount += coinReward;
           spawnParticles(particles, enemy.x, enemy.y - 10, "#ff5722", 8);
+          playSfx("kill");
           if (navigator.vibrate) navigator.vibrate(12);
         }
       }
@@ -1708,6 +1710,7 @@ export function mount(container: HTMLElement): () => void {
             life: 1,
             maxLife: 500,
           });
+          playSfx("coin");
           if (navigator.vibrate) navigator.vibrate(3);
         }
       }
@@ -1751,11 +1754,13 @@ export function mount(container: HTMLElement): () => void {
         const holdRatio = Math.min(jumpHoldTime / JUMP_HOLD_MAX_MS, 1);
         player.vy = JUMP_VY_SHORT + (JUMP_VY_LONG - JUMP_VY_SHORT) * holdRatio;
         player.jumpsUsed = 1;
+        playSfx("jump");
         if (navigator.vibrate) navigator.vibrate(5);
         dismissHint();
       } else if (player.jumpsUsed < 2) {
         player.vy = DOUBLE_JUMP_VY;
         player.jumpsUsed = 2;
+        playSfx("jump");
         if (navigator.vibrate) navigator.vibrate(8);
       }
     }
@@ -1877,6 +1882,7 @@ export function mount(container: HTMLElement): () => void {
 
   async function triggerGameOver(): Promise<void> {
     phase = "gameover";
+    playSfx("gameover");
     if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
 
     const finalScore = score;

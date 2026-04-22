@@ -1,5 +1,6 @@
 import { db } from "../../lib/storage.js";
 import { navigate } from "../../lib/router.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -232,6 +233,7 @@ function buildGame(container: HTMLElement, showHintFirst: boolean): () => void {
 
   function enterWait(): void {
     phase = "wait";
+    playSfx("countdown");
     const waitMs = WAIT_MIN_MS + Math.random() * (WAIT_MAX_MS - WAIT_MIN_MS);
 
     setHalfColor(halfP1, C_FALSE);
@@ -246,6 +248,7 @@ function buildGame(container: HTMLElement, showHintFirst: boolean): () => void {
 
   function enterGo(): void {
     phase = "go";
+    playSfx("go");
     goTimestamp = performance.now();
 
     const goBg = `linear-gradient(135deg, ${C_GO_FROM}, ${C_GO_TO})`;
@@ -391,6 +394,7 @@ function buildGame(container: HTMLElement, showHintFirst: boolean): () => void {
         setStateLabel(stateEl, "FALSE START", "rd-label-false");
         reactEl.textContent = "";
         setResultLabel(resultEl, `<span class="rd-lose-text">LOSE</span>`);
+        playSfx("error");
         navigator.vibrate?.([80, 80, 80, 80, 200]);
       } else if (result.winner === pNum) {
         // Winner
@@ -404,6 +408,7 @@ function buildGame(container: HTMLElement, showHintFirst: boolean): () => void {
           reactEl.textContent = "";
         }
         setResultLabel(resultEl, `<span class="rd-win-text">WIN +1</span>`);
+        playSfx("win");
         navigator.vibrate?.(50);
       } else {
         // Loser (not false start)

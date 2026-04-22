@@ -2,6 +2,7 @@ import { submit } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- types ----------
 
@@ -508,12 +509,15 @@ export function mount(container: HTMLElement): () => void {
         // Check violation (wrong = not matching solution)
         const correct = state.solution[r]![c];
         if (n !== correct && !wasWrong) {
+          playSfx("error");
           state.errors++;
           updateErrorsDisplay();
           if (state.errors >= MAX_ERRORS) {
             triggerGameOver();
             return;
           }
+        } else if (n === correct) {
+          playSfx("place");
         }
       }
 
@@ -596,6 +600,7 @@ export function mount(container: HTMLElement): () => void {
     state.phase = "won";
     const elapsed = getCurrentElapsed();
     const score = calcScore(state.difficulty, elapsed, state.errors);
+    playSfx("win");
     void submit("sudoku", score);
     void deleteSetting(STATE_KEY);
     activeOverlay = showWinOverlay(elapsed, state.errors, score, () => {

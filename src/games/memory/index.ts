@@ -2,6 +2,7 @@ import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- types ----------
 
@@ -744,6 +745,7 @@ export function mount(container: HTMLElement): () => void {
     // Start timer on first flip
     if (moves === 0 && elapsed === 0 && flipped.length === 0) startTimer();
 
+    playSfx("flip");
     navigator.vibrate?.(4);
     card.faceUp = true;
     flipped.push(idx);
@@ -760,6 +762,7 @@ export function mount(container: HTMLElement): () => void {
 
       if (c0.pairId === c1.pairId) {
         // Match
+        playSfx("match");
         navigator.vibrate?.(15);
         setTimeout(() => {
           c0.matched = true;
@@ -796,6 +799,7 @@ export function mount(container: HTMLElement): () => void {
     stopTimer();
     phase = "won";
     const score = calcScore(difficulty, moves, elapsed);
+    playSfx("win");
     navigator.vibrate?.([30, 60, 30, 60, 100]);
     void submit("memory", score);
     void personalBest("memory").then((pb) => {

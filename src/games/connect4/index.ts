@@ -1,5 +1,6 @@
 import { db } from "../../lib/storage.js";
 import { navigate } from "../../lib/router.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -381,6 +382,7 @@ function buildGame(
     }
 
     phase = "dropping";
+    playSfx("place");
     navigator.vibrate?.(8);
 
     dropDisc(col, row, currentPlayer, () => {
@@ -393,6 +395,7 @@ function buildGame(
         if (winner === 1) score.p1++;
         else score.p2++;
         updateScoreDisplay();
+        playSfx("win");
         navigator.vibrate?.([40, 40, 100]);
         highlightWin(winCoords, playerColor(winner));
         setTimeout(() => showRoundOverlay(winner), 700);

@@ -2,6 +2,7 @@ import { submit, personalBest } from "../../lib/leaderboard.js";
 import { navigate } from "../../lib/router.js";
 import { db } from "../../lib/storage.js";
 import { computeRank, type RankInfo } from "../../lib/rank.js";
+import { playSfx } from "../../lib/audio.js";
 
 // ---------- types ----------
 
@@ -886,6 +887,7 @@ export function mount(container: HTMLElement): () => void {
     if (b.vy > -BULLET_SPEED * 0.3) b.vy = -BULLET_SPEED * 0.3;
 
     shots++;
+    playSfx("shoot");
     vibrate(4);
   }
 
@@ -967,6 +969,8 @@ export function mount(container: HTMLElement): () => void {
     shakeT = SHAKE_DUR;
     gridPulse = 1;
 
+    playSfx("kill");
+    if (m > prevM) playSfx("score");
     vibrate(10 + Math.min(comboCount * 2, 20));
     if (m > prevM) vibrate(20);
 
@@ -1161,6 +1165,7 @@ export function mount(container: HTMLElement): () => void {
   // ---------- gameover ----------
   function triggerGameover(): void {
     phase = "gameover";
+    playSfx("gameover");
     vibrate([50, 50, 100]);
     cancelAnimationFrame(rafId);
     void submit("color-match-shooter", score);
