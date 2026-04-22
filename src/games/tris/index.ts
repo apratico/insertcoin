@@ -377,20 +377,10 @@ function buildGame(
   let dismissHintFn: (() => void) | null = null;
 
   if (showHintFirst) {
-    phase = "hint";
-    // show hint and re-enable playing when dismissed
-    dismissHintFn = showHint(container, () => {
-      phase = "playing";
-      dismissHintFn = null;
-    });
-
-    // first valid tap on board dismisses hint
-    const onFirstTap = (e: Event): void => {
-      const target = (e.target as HTMLElement).closest<HTMLElement>("[data-idx]");
-      if (target && phase === "hint") {
-        boardEl.removeEventListener("pointerup", onFirstTap);
-        dismissHintFn?.();
-      }
+    dismissHintFn = showHint(container, () => { dismissHintFn = null; });
+    const onFirstTap = (): void => {
+      boardEl.removeEventListener("pointerup", onFirstTap);
+      dismissHintFn?.();
     };
     boardEl.addEventListener("pointerup", onFirstTap);
   }
