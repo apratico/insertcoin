@@ -257,9 +257,11 @@ export function mount(container: HTMLElement): () => void {
   // ---------- game state ----------
   let phase: Phase = "playing";
   let wave = 1;
+  const STARTING_COINS = 20;
+
   let score = 0;
   let best = 0;
-  let coins = 0;
+  let coins = STARTING_COINS;
   let hp = 3;
   let kills = 0;
   let coinsSpent = 0;
@@ -783,11 +785,10 @@ export function mount(container: HTMLElement): () => void {
   }
 
   function restartGame(): void {
-    // reset state
     wave = 1;
     score = 0;
     hp = 3;
-    coins = 0;
+    coins = STARTING_COINS;
     kills = 0;
     coinsSpent = 0;
     waveEnemiesSpawned = 0;
@@ -802,8 +803,10 @@ export function mount(container: HTMLElement): () => void {
     bullets.forEach((b) => { b.alive = false; });
     particles.forEach((p) => { p.alive = false; });
 
-    // clear slots
+    // reset slots with 2 starting turrets
     for (let i = 0; i < SLOT_COUNT; i++) slots[i] = null;
+    slots[0] = { level: 1, fireCooldown: 0 };
+    slots[1] = { level: 1, fireCooldown: 0 };
 
     gameoverOverlay?.remove(); gameoverOverlay = null;
     pausedOverlay?.remove(); pausedOverlay = null;
@@ -1091,6 +1094,9 @@ export function mount(container: HTMLElement): () => void {
   // ---------- boot ----------
 
   buildArsenal();
+  slots[0] = { level: 1, fireCooldown: 0 };
+  slots[1] = { level: 1, fireCooldown: 0 };
+  renderArsenal();
   resize();
   updateHUD();
   stateReady = true;
