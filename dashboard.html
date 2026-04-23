@@ -176,7 +176,14 @@
   </section>
 
   <section>
-    <h2>TOP GIOCATI</h2>
+    <h2>APERTURE GIOCO (OPENS)</h2>
+    <div class="sub" style="margin:-8px 0 10px">Ogni volta che un utente apre un gioco (route enter). Include anche giochi compagnia senza score.</div>
+    <div id="opens" class="loading">Loading…</div>
+  </section>
+
+  <section>
+    <h2>SCORE SUBMISSIONS (PLAYS)</h2>
+    <div class="sub" style="margin:-8px 0 10px">Conta solo partite che hanno inviato uno score (gameover dei giochi con leaderboard).</div>
     <div id="plays" class="loading">Loading…</div>
   </section>
 
@@ -306,6 +313,26 @@ async function loadCountries() {
   }
 }
 
+async function loadOpens() {
+  try {
+    const rows = await rpc("opens_per_game");
+    const max = Math.max(1, ...rows.map(r => Number(r.opens)));
+    const el = document.getElementById("opens");
+    if (rows.length === 0) { el.innerHTML = "<em>Nessuna apertura loggata ancora.</em>"; return; }
+    el.innerHTML = rows.map(r => {
+      const pct = (Number(r.opens) / max) * 100;
+      return `
+        <div class="bar-row">
+          <span>${r.game_id}</span>
+          <span class="bar" style="width:${pct}%"></span>
+          <span class="mono-n">${fmt(r.opens)}</span>
+        </div>`;
+    }).join("");
+  } catch (e) {
+    document.getElementById("opens").innerHTML = `<span class="error">${e.message}</span>`;
+  }
+}
+
 async function loadPlays() {
   try {
     const rows = await rpc("plays_per_game");
@@ -351,6 +378,7 @@ loadTotals();
 loadDaily();
 loadHours();
 loadCountries();
+loadOpens();
 loadPlays();
 loadRecent();
 </script>
