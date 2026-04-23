@@ -8,6 +8,7 @@ import { mountScores, unmountScores } from "./ui/scores.js";
 import { joinLobby, leaveLobby } from "./lib/presence.js";
 import { setupAutoUpdate, hardReset } from "./lib/update.js";
 import { logVisit } from "./lib/visits.js";
+import { logGameOpen } from "./lib/stats.js";
 
 await db.open();
 
@@ -87,6 +88,7 @@ onRoute(async (route) => {
       navigate("/");
       return;
     }
+    void logGameOpen(entry.id);
 
     unmountMenu();
     menuHost.style.display = "none";

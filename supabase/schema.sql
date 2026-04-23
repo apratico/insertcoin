@@ -98,13 +98,42 @@ returns table (nickname text, score int, played_at timestamptz, device_id text) 
   limit greatest(p_limit, 1)
 $$ language sql stable;
 
--- Play counts per game (most-played ranking)
+-- Play counts per game (most-played ranking) — based on score submissions
 create or replace function public.plays_per_game()
 returns table (game_id text, plays bigint) as $$
   select game_id, count(*)::bigint as plays
   from public.scores
   group by game_id
   order by plays desc
+$$ language sql stable;
+
+-- Game-open events — counts EVERY time a user enters a game,
+-- regardless of whether they finished or submitted a score.
+-- Covers company games (which don't submit scores) and stopped sessions.
+create table if not exists public.game_opens (
+  id         bigserial primary key,
+  device_id  text,
+  game_id    text not null,
+  opened_at  timestamptz not null default now()
+);
+
+create index if not exists game_opens_game_idx on public.game_opens (game_id);
+create index if not exists game_opens_opened_idx on public.game_opens (opened_at desc);
+
+alter table public.game_opens enable row level security;
+
+drop policy if exists game_opens_insert on public.game_opens;
+create policy game_opens_insert on public.game_opens
+  for insert with check (true);
+
+-- (no select policy — anon cannot read individual rows)
+
+create or replace function public.opens_per_game()
+returns table (game_id text, opens bigint) as $$
+  select game_id, count(*)::bigint as opens
+  from public.game_opens
+  group by game_id
+  order by opens desc
 $$ language sql stable;
 
 -- =====================================================================
