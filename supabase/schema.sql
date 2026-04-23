@@ -157,3 +157,37 @@ returns table (day date, n bigint) as $$
   group by day
   order by day
 $$ language sql stable;
+
+-- Country breakdown (anonymous aggregate, no individual data)
+create or replace function public.visits_by_country()
+returns table (country text, n bigint) as $$
+  select coalesce(country, '??') as country, count(*)::bigint
+  from public.visits
+  group by country
+  order by count(*) desc
+  limit 50
+$$ language sql stable;
+
+-- Hour-of-day histogram (server UTC)
+create or replace function public.visits_by_hour()
+returns table (hour int, n bigint) as $$
+  select extract(hour from created_at at time zone 'utc')::int as hour, count(*)::bigint
+  from public.visits
+  group by hour
+  order by hour
+$$ language sql stable;
+
+-- Recent visits with safe fields only (nickname, country, timezone, language, when)
+create or replace function public.visits_recent(p_limit int default 50)
+returns table (
+  nickname text,
+  country  text,
+  timezone text,
+  language text,
+  created_at timestamptz
+) as $$
+  select nickname, country, timezone, language, created_at
+  from public.visits
+  order by created_at desc
+  limit greatest(p_limit, 1)
+$$ language sql stable;

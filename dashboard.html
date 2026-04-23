@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>InsertCoin — Dashboard</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --fg: #e8eef5;
+    --muted: #8a97a8;
+    --accent: #f6c24c;
+    --accent-2: #ff4f8b;
+    --green: #22dd66;
+    --red: #ff4433;
+    --surface: #151b23;
+    --border: #253040;
+    --mono: "Menlo","Consolas",ui-monospace,monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px;
+    background: var(--bg); color: var(--fg);
+    font-family: var(--mono);
+    min-height: 100vh;
+  }
+  h1 {
+    margin: 0 0 6px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-shadow: 0 0 16px rgba(246,194,76,0.5);
+    font-size: 22px;
+  }
+  .sub { color: var(--muted); font-size: 11px; letter-spacing: 1px; margin-bottom: 20px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    flex: 1 1 140px;
+    min-width: 140px;
+  }
+  .card-label { font-size: 9px; letter-spacing: 2px; color: var(--muted); }
+  .card-val {
+    font-size: 32px; font-weight: bold;
+    color: var(--accent);
+    text-shadow: 0 0 10px rgba(246,194,76,0.4);
+    margin-top: 4px;
+    line-height: 1;
+  }
+  section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  section h2 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--accent);
+  }
+  .bar-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 60px;
+    gap: 10px;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .bar {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    height: 14px;
+    border-radius: 3px;
+    box-shadow: 0 0 6px rgba(246,194,76,0.3);
+    min-width: 2px;
+  }
+  .mono-n { text-align: right; color: var(--accent); font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: normal; letter-spacing: 1px; font-size: 9px; }
+  td.right { text-align: right; color: var(--muted); }
+  .daily {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 120px;
+    padding-top: 6px;
+  }
+  .daily-bar {
+    flex: 1;
+    min-height: 2px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    border-radius: 2px 2px 0 0;
+    position: relative;
+  }
+  .daily-labels {
+    display: flex;
+    gap: 3px;
+    margin-top: 4px;
+    font-size: 8px;
+    color: var(--muted);
+  }
+  .daily-labels span { flex: 1; text-align: center; letter-spacing: 0.5px; }
+  .hours {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 2px;
+    align-items: flex-end;
+    height: 80px;
+    margin-top: 4px;
+  }
+  .hour-bar { background: var(--accent-2); border-radius: 2px; min-height: 2px; }
+  .hours-labels {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 2px;
+    margin-top: 2px;
+    font-size: 8px;
+    color: var(--muted);
+    text-align: center;
+  }
+  button {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: inherit;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    font-size: 11px;
+  }
+  button:hover { background: rgba(246,194,76,0.1); }
+  .error { color: var(--red); font-size: 11px; }
+  .loading { color: var(--muted); font-style: italic; }
+  .flag { display: inline-block; min-width: 30px; text-align: center; }
+  .footer {
+    margin-top: 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+  <h1>INSERT COIN — DASHBOARD</h1>
+  <div class="sub">Analytics • Supabase realtime snapshot</div>
+
+  <div class="row" id="totals">
+    <div class="card"><div class="card-label">OGGI</div><div class="card-val" id="t-day">—</div></div>
+    <div class="card"><div class="card-label">MESE</div><div class="card-val" id="t-month">—</div></div>
+    <div class="card"><div class="card-label">ANNO</div><div class="card-val" id="t-year">—</div></div>
+    <div class="card"><div class="card-label">TOTALI</div><div class="card-val" id="t-all">—</div></div>
+  </div>
+
+  <section>
+    <h2>ULTIMI 30 GIORNI — VISITE</h2>
+    <div class="daily" id="daily"></div>
+    <div class="daily-labels" id="daily-labels"></div>
+  </section>
+
+  <section>
+    <h2>ORE DEL GIORNO (UTC) — VISITE</h2>
+    <div class="hours" id="hours"></div>
+    <div class="hours-labels" id="hours-labels"></div>
+  </section>
+
+  <section>
+    <h2>PAESI</h2>
+    <div id="countries" class="loading">Loading…</div>
+  </section>
+
+  <section>
+    <h2>TOP GIOCATI</h2>
+    <div id="plays" class="loading">Loading…</div>
+  </section>
+
+  <section>
+    <h2>ULTIME VISITE</h2>
+    <table id="recent-table">
+      <thead><tr><th>Quando</th><th>Nick</th><th>Paese</th><th>Timezone</th><th>Lingua</th></tr></thead>
+      <tbody id="recent"></tbody>
+    </table>
+  </section>
+
+  <div style="text-align:center;margin:20px 0;">
+    <button onclick="location.reload()">⟳ REFRESH</button>
+  </div>
+
+  <div class="footer">
+    Source: Supabase • Key: anon • Local dashboard (file://)<br>
+    Non indicizzato. Non deployato. Usa responsabilmente.
+  </div>
+
+<script>
+const SUPABASE_URL  = "https://cqxktssbzfvyxhnvloml.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxeGt0c3NiemZ2eXhobnZsb21sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTEyNzMsImV4cCI6MjA5MjM2NzI3M30.YrgVH-u8524RkXVOH8dkqqlDgW_-nDXQUw_sBBFqAdQ";
+
+async function rpc(fn, body = {}) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`${fn} ${r.status}`);
+  return r.json();
+}
+
+function fmt(n) { return n.toLocaleString("it-IT"); }
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+async function loadTotals() {
+  try {
+    const [t] = await rpc("visits_totals");
+    document.getElementById("t-day").textContent   = fmt(t.day_total);
+    document.getElementById("t-month").textContent = fmt(t.month_total);
+    document.getElementById("t-year").textContent  = fmt(t.year_total);
+    document.getElementById("t-all").textContent   = fmt(t.all_total);
+  } catch (e) { console.error(e); }
+}
+
+async function loadDaily() {
+  try {
+    const rows = await rpc("visits_daily", { p_days: 30 });
+    const map = new Map(rows.map(r => [r.day, Number(r.n)]));
+    const now = new Date();
+    const days = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now);
+      d.setUTCDate(d.getUTCDate() - i);
+      const key = d.toISOString().slice(0,10);
+      days.push({ day: key, n: map.get(key) ?? 0 });
+    }
+    const max = Math.max(1, ...days.map(d => d.n));
+    const dailyEl = document.getElementById("daily");
+    const lblEl   = document.getElementById("daily-labels");
+    dailyEl.innerHTML = days.map(d => {
+      const h = (d.n / max) * 100;
+      return `<div class="daily-bar" style="height:${h}%" title="${d.day}: ${d.n}"></div>`;
+    }).join("");
+    lblEl.innerHTML = days.map((d, i) => {
+      const show = (i % 5 === 0) ? d.day.slice(5) : "";
+      return `<span>${show}</span>`;
+    }).join("");
+  } catch (e) { console.error(e); }
+}
+
+async function loadHours() {
+  try {
+    const rows = await rpc("visits_by_hour");
+    const map = new Map(rows.map(r => [r.hour, Number(r.n)]));
+    const max = Math.max(1, ...Array.from(map.values()));
+    const el = document.getElementById("hours");
+    const lbl = document.getElementById("hours-labels");
+    let bars = "", labels = "";
+    for (let h = 0; h < 24; h++) {
+      const n = map.get(h) ?? 0;
+      const height = (n / max) * 100;
+      bars += `<div class="hour-bar" style="height:${height}%" title="${h}:00 — ${n}"></div>`;
+      labels += `<span>${h % 3 === 0 ? h : ""}</span>`;
+    }
+    el.innerHTML = bars;
+    lbl.innerHTML = labels;
+  } catch (e) { console.error(e); }
+}
+
+const FLAG_MAP = {
+  IT:"🇮🇹", US:"🇺🇸", GB:"🇬🇧", DE:"🇩🇪", FR:"🇫🇷", ES:"🇪🇸", PT:"🇵🇹", BR:"🇧🇷",
+  RU:"🇷🇺", CN:"🇨🇳", JP:"🇯🇵", KR:"🇰🇷", IN:"🇮🇳", CA:"🇨🇦", MX:"🇲🇽", AU:"🇦🇺",
+  NL:"🇳🇱", PL:"🇵🇱", SE:"🇸🇪", NO:"🇳🇴", DK:"🇩🇰", FI:"🇫🇮", AR:"🇦🇷", CH:"🇨🇭",
+  BE:"🇧🇪", AT:"🇦🇹", IE:"🇮🇪", CZ:"🇨🇿", RO:"🇷🇴", HU:"🇭🇺", GR:"🇬🇷", TR:"🇹🇷",
+  ZA:"🇿🇦", EG:"🇪🇬", NG:"🇳🇬", SA:"🇸🇦", AE:"🇦🇪", IL:"🇮🇱", UA:"🇺🇦"
+};
+
+async function loadCountries() {
+  try {
+    const rows = await rpc("visits_by_country");
+    const max = Math.max(1, ...rows.map(r => Number(r.n)));
+    const el = document.getElementById("countries");
+    if (rows.length === 0) { el.innerHTML = "<em>Nessun dato.</em>"; return; }
+    el.innerHTML = rows.map(r => {
+      const pct = (Number(r.n) / max) * 100;
+      const flag = FLAG_MAP[r.country] ?? "🏳";
+      return `
+        <div class="bar-row">
+          <span><span class="flag">${flag}</span> ${r.country}</span>
+          <span class="bar" style="width:${pct}%"></span>
+          <span class="mono-n">${fmt(r.n)}</span>
+        </div>`;
+    }).join("");
+  } catch (e) {
+    document.getElementById("countries").innerHTML = `<span class="error">${e.message}</span>`;
+  }
+}
+
+async function loadPlays() {
+  try {
+    const rows = await rpc("plays_per_game");
+    const max = Math.max(1, ...rows.map(r => Number(r.plays)));
+    const el = document.getElementById("plays");
+    if (rows.length === 0) { el.innerHTML = "<em>Nessun dato.</em>"; return; }
+    el.innerHTML = rows.map(r => {
+      const pct = (Number(r.plays) / max) * 100;
+      return `
+        <div class="bar-row">
+          <span>${r.game_id}</span>
+          <span class="bar" style="width:${pct}%"></span>
+          <span class="mono-n">${fmt(r.plays)}</span>
+        </div>`;
+    }).join("");
+  } catch (e) {
+    document.getElementById("plays").innerHTML = `<span class="error">${e.message}</span>`;
+  }
+}
+
+async function loadRecent() {
+  try {
+    const rows = await rpc("visits_recent", { p_limit: 50 });
+    const tbody = document.getElementById("recent");
+    if (rows.length === 0) { tbody.innerHTML = "<tr><td colspan='5'><em>Nessuna visita.</em></td></tr>"; return; }
+    tbody.innerHTML = rows.map(r => {
+      const flag = FLAG_MAP[r.country] ?? "🏳";
+      return `
+        <tr>
+          <td>${fmtDate(r.created_at)}</td>
+          <td>${r.nickname ?? "-"}</td>
+          <td>${flag} ${r.country ?? "?"}</td>
+          <td>${r.timezone ?? "-"}</td>
+          <td>${r.language ?? "-"}</td>
+        </tr>`;
+    }).join("");
+  } catch (e) {
+    document.getElementById("recent").innerHTML = `<tr><td colspan="5"><span class="error">${e.message}</span></td></tr>`;
+  }
+}
+
+loadTotals();
+loadDaily();
+loadHours();
+loadCountries();
+loadPlays();
+loadRecent();
+</script>
+</body>
+</html>
