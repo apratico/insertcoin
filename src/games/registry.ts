@@ -160,6 +160,16 @@ export const GAMES: GameEntry[] = [
     status: "ready",
     load: () => import("./brick-buster/index.js"),
   },
+  {
+    id: "gem-cascade",
+    title: "Gem Cascade",
+    tagline: "Swap. Match. Cascade.",
+    palette: { bg: "#1a0030", fg: "#ffffff", accent: "#ff44ff" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    load: () => import("./gem-cascade/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

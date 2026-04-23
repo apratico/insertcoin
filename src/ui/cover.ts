@@ -966,6 +966,7 @@ function artBody(entry: GameEntry): string {
       case "crypt-run": return cryptRunArt(id);
       case "one-bullet": return oneBulletArt(id);
       case "brick-buster": return brickBusterArt(id);
+      case "gem-cascade": return gemCascadeArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1196,6 +1197,77 @@ function brickBusterArt(id: string): string {
   <rect x="${paddleX}" y="${paddleY}" width="${paddleW}" height="${paddleH}" rx="3" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="0.8"/>`;
 
   return bricks.join("\n  ") + "\n  " + trail + "\n  " + ball + "\n  " + paddle;
+}
+
+function gemCascadeArt(id: string): string {
+  // 5x5 mini gem grid with 3 highlighted gems in a row
+  const gemColors = ["#ff3344", "#00eeff", "#ffee00", "#44ff66", "#aa44ff", "#ff8822"];
+  const shapes = ["rhombus", "circle", "triangle", "pentagon", "star", "hexagon"];
+  const cellSize = 16;
+  const gap = 2;
+  const ox = 20;
+  const oy = 8;
+
+  // fixed layout for cover: 5x5 grid with row 2 cols 1-3 highlighted (match-3)
+  const layout: number[][] = [
+    [0, 1, 2, 3, 4],
+    [5, 3, 0, 1, 2],
+    [1, 4, 4, 4, 3], // row 2: indices 1-3 are color 4 (purple star) — match 3
+    [2, 0, 3, 5, 1],
+    [4, 2, 1, 0, 5],
+  ];
+
+  const cells: string[] = [];
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const x = ox + c * (cellSize + gap);
+      const y = oy + r * (cellSize + gap);
+      const colorIdx = layout[r]![c]!;
+      const color = gemColors[colorIdx]!;
+      const highlighted = r === 2 && c >= 1 && c <= 3;
+
+      // gem background cell
+      cells.push(
+        `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" rx="3" fill="${color}22" stroke="${color}" stroke-width="${highlighted ? 1.5 : 0.5}" stroke-opacity="${highlighted ? 1 : 0.4}" ${highlighted ? `filter="url(#glow-${id})"` : ""}/>`,
+      );
+
+      // shape inside
+      const shape = shapes[colorIdx % shapes.length]!;
+      const cx = x + cellSize / 2;
+      const cy = y + cellSize / 2;
+      const sr = (cellSize / 2) - 2.5;
+
+      if (shape === "circle") {
+        cells.push(`<circle cx="${cx}" cy="${cy}" r="${sr}" fill="${color}" fill-opacity="${highlighted ? 0.95 : 0.7}" ${highlighted ? `filter="url(#glow-${id})"` : ""}/>`);
+      } else if (shape === "rhombus") {
+        cells.push(`<polygon points="${cx},${cy - sr} ${cx + sr},${cy} ${cx},${cy + sr} ${cx - sr},${cy}" fill="${color}" fill-opacity="${highlighted ? 0.95 : 0.7}" ${highlighted ? `filter="url(#glow-${id})"` : ""}/>`);
+      } else if (shape === "triangle") {
+        cells.push(`<polygon points="${cx},${cy - sr} ${cx + sr},${cy + sr} ${cx - sr},${cy + sr}" fill="${color}" fill-opacity="${highlighted ? 0.95 : 0.7}" ${highlighted ? `filter="url(#glow-${id})"` : ""}/>`);
+      } else if (shape === "star") {
+        const pts: string[] = [];
+        for (let i = 0; i < 10; i++) {
+          const a = (i * 36 - 90) * Math.PI / 180;
+          const rr = i % 2 === 0 ? sr : sr * 0.44;
+          pts.push(`${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`);
+        }
+        cells.push(`<polygon points="${pts.join(" ")}" fill="${color}" fill-opacity="${highlighted ? 0.95 : 0.7}" ${highlighted ? `filter="url(#glow-${id})"` : ""}/>`);
+      } else {
+        // pentagon / hexagon / default — small filled circle
+        cells.push(`<circle cx="${cx}" cy="${cy}" r="${sr}" fill="${color}" fill-opacity="${highlighted ? 0.95 : 0.7}" ${highlighted ? `filter="url(#glow-${id})"` : ""}/>`);
+      }
+    }
+  }
+
+  // glow ring around the 3 highlighted gems row
+  const ringY = oy + 2 * (cellSize + gap);
+  const ringX1 = ox + 1 * (cellSize + gap) - 2;
+  const ringX2 = ox + 3 * (cellSize + gap) + cellSize + 2;
+  const glow3 = `<rect x="${ringX1}" y="${ringY - 2}" width="${ringX2 - ringX1}" height="${cellSize + 4}" rx="5" fill="none" stroke="#ff44ff" stroke-width="2" stroke-opacity="0.7" filter="url(#glow2-${id})"/>`;
+
+  // Small cascade score label
+  const scoreLabel = `<text x="${ox + 2.5 * (cellSize + gap)}" y="${oy + 5 * (cellSize + gap) + 6}" font-family="'Press Start 2P',ui-monospace,monospace" font-size="6" font-weight="bold" text-anchor="middle" fill="#ff44ff" filter="url(#glow-${id})">+60 MATCH!</text>`;
+
+  return cells.join("\n  ") + "\n  " + glow3 + "\n  " + scoreLabel;
 }
 
 function defaultArt(id: string, accent: string): string {
