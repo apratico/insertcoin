@@ -316,12 +316,82 @@ function injectStyles(): void {
       border-color: #ff3c3c !important;
     }
     .bfit-cell.clearing {
-      animation: bfit-clear 320ms ease forwards;
+      animation: bfit-clear 420ms ease forwards;
+      z-index: 4;
     }
     @keyframes bfit-clear {
-      0%   { transform: scale(1); opacity: 1; filter: brightness(2); }
-      50%  { transform: scale(1.1); opacity: 0.9; }
-      100% { transform: scale(0.5); opacity: 0; }
+      0%   { transform: scale(1); opacity: 1; filter: brightness(3) saturate(2); box-shadow: 0 0 14px #fff, 0 0 22px currentColor; }
+      30%  { transform: scale(1.35); opacity: 1; filter: brightness(4) saturate(2.5); box-shadow: 0 0 22px #fff, 0 0 36px currentColor; }
+      60%  { transform: scale(1.2) rotate(6deg); opacity: 0.8; }
+      100% { transform: scale(0) rotate(-14deg); opacity: 0; filter: blur(3px); }
+    }
+    .bfit-arena.shake-1 { animation: bfit-shake 260ms ease; }
+    .bfit-arena.shake-2 { animation: bfit-shake-big 420ms ease; }
+    @keyframes bfit-shake {
+      0%, 100% { transform: translate(0, 0); }
+      20% { transform: translate(-5px, 3px); }
+      40% { transform: translate(4px, -3px); }
+      60% { transform: translate(-3px, 4px); }
+      80% { transform: translate(3px, -2px); }
+    }
+    @keyframes bfit-shake-big {
+      0%, 100% { transform: translate(0, 0); }
+      15% { transform: translate(-10px, 6px) rotate(-1deg); }
+      30% { transform: translate(9px, -5px) rotate(1deg); }
+      45% { transform: translate(-8px, 5px) rotate(-0.5deg); }
+      60% { transform: translate(6px, -4px) rotate(0.5deg); }
+      80% { transform: translate(-4px, 3px); }
+    }
+    .bfit-float {
+      position: absolute;
+      font-family: monospace;
+      font-weight: 900;
+      pointer-events: none;
+      z-index: 25;
+      text-shadow: 0 0 14px currentColor, 0 0 24px currentColor;
+      animation: bfit-float 1000ms ease-out forwards;
+      transform-origin: center;
+      letter-spacing: 1px;
+    }
+    @keyframes bfit-float {
+      0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+      20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.4); }
+      45%  { opacity: 1; transform: translate(-50%, -70%) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -150%) scale(0.85); }
+    }
+    .bfit-combo {
+      position: absolute;
+      top: 25%;
+      left: 50%;
+      font-family: monospace;
+      font-weight: 900;
+      font-size: 40px;
+      color: #ffee00;
+      text-shadow: 0 0 18px #ffee00, 0 0 36px #ff8800;
+      letter-spacing: 6px;
+      pointer-events: none;
+      z-index: 26;
+      animation: bfit-combo 1100ms ease-out forwards;
+      white-space: nowrap;
+    }
+    @keyframes bfit-combo {
+      0%   { opacity: 0; transform: translateX(-50%) scale(0.3) rotate(-8deg); }
+      25%  { opacity: 1; transform: translateX(-50%) scale(1.4) rotate(3deg); }
+      55%  { opacity: 1; transform: translateX(-50%) scale(1) rotate(-1deg); }
+      100% { opacity: 0; transform: translateX(-50%) scale(0.9) rotate(0deg) translateY(-20px); }
+    }
+    .bfit-spark {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 24;
+      animation: bfit-spark 650ms ease-out forwards;
+    }
+    @keyframes bfit-spark {
+      0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      100% { opacity: 0; transform: translate(calc(-50% + var(--sdx)), calc(-50% + var(--sdy))) scale(0.3); }
     }
     .bfit-tray {
       display: flex;
@@ -786,7 +856,7 @@ export function mount(container: HTMLElement): () => void {
       if ("vibrate" in navigator) navigator.vibrate?.(12);
       if (clearCount > 1) {
         playSfx("score");
-        if ("vibrate" in navigator) navigator.vibrate?.(25);
+        if ("vibrate" in navigator) navigator.vibrate?.([30, 30, 40]);
       }
       const hadClearBefore = lastDropHadClear;
       if (hadClearBefore) {
@@ -797,13 +867,20 @@ export function mount(container: HTMLElement): () => void {
       lastDropHadClear = true;
       const clearPts = calcClearScore(clearCount, streak);
       score += clearPts;
+
+      // juice: screen shake + combo banner + floating points + sparks
+      triggerShake(clearCount);
+      if (clearCount >= 2) showCombo(clearCount);
+      showFloatPoints(clearPts, clearCount >= 2 ? "#ffee00" : "#22ddff");
+      spawnClearSparks(clearRows, clearCols);
+
       // apply clear after animation
       setTimeout(() => {
         newGrid = applyClear(newGrid, clearRows, clearCols);
         grid = newGrid;
         renderGrid();
         checkMilestone(score - clearPts, score);
-      }, 330);
+      }, 420);
     } else {
       if (lastDropHadClear) streak = 0;
       lastDropHadClear = false;
@@ -857,6 +934,66 @@ export function mount(container: HTMLElement): () => void {
     el.textContent = text;
     arena.appendChild(el);
     el.addEventListener("animationend", () => el.remove(), { once: true });
+  }
+
+  function triggerShake(clearCount: number): void {
+    const cls = clearCount >= 3 ? "shake-2" : "shake-1";
+    arena.classList.remove("shake-1", "shake-2");
+    // force reflow so re-adding same class restarts animation
+    void arena.offsetWidth;
+    arena.classList.add(cls);
+    setTimeout(() => arena.classList.remove(cls), 450);
+  }
+
+  function showCombo(clearCount: number): void {
+    const el = document.createElement("div");
+    el.className = "bfit-combo";
+    el.textContent = clearCount === 2 ? "DOUBLE!" : clearCount === 3 ? "TRIPLE!" : `x${clearCount} COMBO!`;
+    arena.appendChild(el);
+    el.addEventListener("animationend", () => el.remove(), { once: true });
+  }
+
+  function showFloatPoints(pts: number, color: string): void {
+    const cx = arena.clientWidth / 2;
+    const cy = arena.clientHeight / 2;
+    const el = document.createElement("div");
+    el.className = "bfit-float";
+    el.textContent = `+${pts}`;
+    el.style.left = `${cx}px`;
+    el.style.top = `${cy}px`;
+    el.style.color = color;
+    el.style.fontSize = pts >= 500 ? "40px" : pts >= 200 ? "32px" : "26px";
+    arena.appendChild(el);
+    el.addEventListener("animationend", () => el.remove(), { once: true });
+  }
+
+  function spawnClearSparks(rows: number[], cols: number[]): void {
+    const gridRect = gridEl?.getBoundingClientRect();
+    const arenaRect = arena.getBoundingClientRect();
+    if (!gridRect) return;
+    const cs = gridRect.width / 8;
+    const cells: Array<[number, number]> = [];
+    for (const r of rows) for (let c = 0; c < 8; c++) cells.push([r, c]);
+    for (const c of cols) for (let r = 0; r < 8; r++) cells.push([r, c]);
+    for (const [r, c] of cells) {
+      const baseX = gridRect.left - arenaRect.left + c * cs + cs / 2;
+      const baseY = gridRect.top  - arenaRect.top  + r * cs + cs / 2;
+      const color = RAINBOW[(r + c) % RAINBOW.length] ?? "#22ddff";
+      for (let k = 0; k < 3; k++) {
+        const s = document.createElement("div");
+        s.className = "bfit-spark";
+        s.style.left = `${baseX}px`;
+        s.style.top = `${baseY}px`;
+        s.style.background = color;
+        s.style.boxShadow = `0 0 10px ${color}`;
+        const ang = Math.random() * Math.PI * 2;
+        const d = 20 + Math.random() * 40;
+        s.style.setProperty("--sdx", `${(Math.cos(ang) * d).toFixed(1)}px`);
+        s.style.setProperty("--sdy", `${(Math.sin(ang) * d).toFixed(1)}px`);
+        arena.appendChild(s);
+        s.addEventListener("animationend", () => s.remove(), { once: true });
+      }
+    }
   }
 
   function spawnConfetti(): void {
