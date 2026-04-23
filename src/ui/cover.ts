@@ -968,6 +968,7 @@ function artBody(entry: GameEntry): string {
       case "brick-buster": return brickBusterArt(id);
       case "gem-cascade": return gemCascadeArt(id);
       case "surv-swarm": return survSwarmArt(id);
+      case "color-flow": return colorFlowArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1366,6 +1367,95 @@ function survSwarmArt(id: string): string {
 
   return bg + "\n  " + gridLines.join("\n  ") + "\n  " + gems + "\n  " + enemySprites
     + "\n  " + sparks.join("\n  ") + "\n  " + swordArc + "\n  " + player;
+}
+
+function colorFlowArt(id: string): string {
+  // 5 test tubes arranged in a row, each partially filled with colored layers
+  // Tube dimensions: width ~16, height ~68, bottom-rounded
+  // Colors: red, cyan, yellow, green, purple — last tube is single complete (green)
+  const tubeData: { cx: number; layers: { color: string; h: number; y: number }[]; complete: boolean }[] = [
+    {
+      cx: 22,
+      complete: false,
+      layers: [
+        { color: "#ff3344", h: 14, y: 50 },
+        { color: "#00eeff", h: 14, y: 36 },
+        { color: "#ffee00", h: 10, y: 26 },
+        { color: "#aa44ff", h: 10, y: 16 },
+      ],
+    },
+    {
+      cx: 48,
+      complete: false,
+      layers: [
+        { color: "#ffee00", h: 14, y: 50 },
+        { color: "#ff3344", h: 14, y: 36 },
+        { color: "#aa44ff", h: 16, y: 20 },
+      ],
+    },
+    {
+      cx: 74,
+      complete: false,
+      layers: [
+        { color: "#aa44ff", h: 18, y: 46 },
+        { color: "#00eeff", h: 18, y: 28 },
+      ],
+    },
+    {
+      cx: 100,
+      complete: false,
+      layers: [
+        { color: "#ff3344", h: 16, y: 48 },
+        { color: "#ffee00", h: 14, y: 34 },
+        { color: "#00eeff", h: 14, y: 20 },
+      ],
+    },
+    {
+      cx: 134,
+      complete: true,
+      layers: [
+        { color: "#44ff66", h: 64, y: 0 },
+      ],
+    },
+  ];
+
+  const tubeW = 18;
+  const tubeH = 68;
+  const tubeTop = 10;
+
+  const tubes = tubeData.map(({ cx, layers, complete }) => {
+    const x = cx - tubeW / 2;
+    const y = tubeTop;
+    // Tube outline: open top, rounded bottom
+    const outline = `<rect x="${x}" y="${y}" width="${tubeW}" height="${tubeH}"
+      rx="${tubeW / 2}" fill="rgba(10,26,42,0.7)"
+      stroke="${complete ? "#22ffaa" : "rgba(200,220,240,0.4)"}" stroke-width="1.5"
+      ${complete ? `filter="url(#glow-${id})"` : ""}/>`;
+
+    // Clip path via rect (approximate: draw layers as rects capped by tube bounds)
+    const layerSvg = layers.map(({ color, h, y: ly }) => {
+      const absY = y + ly;
+      // Clamp bottom to tube rounded area
+      const actualH = Math.min(h, tubeH - ly - 1);
+      const br = (actualH > tubeH - ly - 8) ? tubeW / 2 : 0;
+      return `<rect x="${x + 1.5}" y="${absY}" width="${tubeW - 3}" height="${actualH}"
+        rx="${br}" fill="${color}" fill-opacity="0.92"/>`;
+    }).join("\n  ");
+
+    return outline + "\n  " + layerSvg;
+  }).join("\n  ");
+
+  // Pour arc from tube 3 to tube 2 (cyan pouring)
+  const pourLine = `<path d="M100 14 Q117 4 134 14" fill="none" stroke="#44ff66" stroke-width="2.5"
+    stroke-linecap="round" fill-opacity="0" opacity="0.8" filter="url(#glow-${id})"/>`;
+
+  // Drop dots on arc
+  const drops = [
+    `<circle cx="113" cy="6" r="2.5" fill="#44ff66" fill-opacity="0.9" filter="url(#glow-${id})"/>`,
+    `<circle cx="121" cy="5" r="2" fill="#44ff66" fill-opacity="0.6"/>`,
+  ].join("\n  ");
+
+  return tubes + "\n  " + pourLine + "\n  " + drops;
 }
 
 function defaultArt(id: string, accent: string): string {

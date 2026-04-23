@@ -180,6 +180,16 @@ export const GAMES: GameEntry[] = [
     status: "ready",
     load: () => import("./surv-swarm/index.js"),
   },
+  {
+    id: "color-flow",
+    title: "Color Flow",
+    tagline: "Pour. Sort. Satisfy.",
+    palette: { bg: "#0a1a2a", fg: "#ffffff", accent: "#22ffaa" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    load: () => import("./color-flow/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)
