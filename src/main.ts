@@ -7,6 +7,7 @@ import { mountMenu, unmountMenu } from "./ui/menu.js";
 import { mountScores, unmountScores } from "./ui/scores.js";
 import { joinLobby, leaveLobby } from "./lib/presence.js";
 import { setupAutoUpdate, hardReset } from "./lib/update.js";
+import { logVisit } from "./lib/visits.js";
 
 await db.open();
 
@@ -15,6 +16,7 @@ await initAuth();
 setupAutoUpdate();
 joinLobby();
 window.addEventListener("beforeunload", () => leaveLobby());
+void logVisit();
 
 // Escape hatch for stale caches on mobile.
 // Visit /#reset or run window.hardReset() from console to fully clear SW + caches.

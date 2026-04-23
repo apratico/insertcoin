@@ -106,3 +106,54 @@ returns table (game_id text, plays bigint) as $$
   group by game_id
   order by plays desc
 $$ language sql stable;
+
+-- =====================================================================
+-- Visit log (analytics)
+-- =====================================================================
+create table if not exists public.visits (
+  id           bigserial primary key,
+  device_id    text,
+  nickname     text,
+  user_agent   text,
+  language     text,
+  timezone     text,
+  referrer     text,
+  screen_w     int,
+  screen_h     int,
+  country      text,
+  ip           text,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists visits_created_idx on public.visits (created_at desc);
+create index if not exists visits_device_idx  on public.visits (device_id);
+create index if not exists visits_country_idx on public.visits (country);
+
+alter table public.visits enable row level security;
+
+drop policy if exists visits_insert on public.visits;
+create policy visits_insert on public.visits
+  for insert with check (true);
+
+-- Only owner reads back (admin query via Supabase dashboard uses service_role
+-- which bypasses RLS). Anon cannot read visits to protect privacy.
+
+-- Aggregations
+create or replace function public.visits_totals()
+returns table (day_total bigint, month_total bigint, year_total bigint, all_total bigint) as $$
+  select
+    (select count(*) from public.visits where created_at >= date_trunc('day',   now() at time zone 'utc')),
+    (select count(*) from public.visits where created_at >= date_trunc('month', now() at time zone 'utc')),
+    (select count(*) from public.visits where created_at >= date_trunc('year',  now() at time zone 'utc')),
+    (select count(*) from public.visits)
+$$ language sql stable;
+
+-- Allow anon to read only aggregated totals (never individual rows)
+create or replace function public.visits_daily(p_days int default 30)
+returns table (day date, n bigint) as $$
+  select date_trunc('day', created_at at time zone 'utc')::date as day, count(*)::bigint
+  from public.visits
+  where created_at >= (now() at time zone 'utc') - make_interval(days => greatest(p_days, 1))
+  group by day
+  order by day
+$$ language sql stable;

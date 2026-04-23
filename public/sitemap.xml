@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://200lire.pages.dev/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url><loc>https://200lire.pages.dev/#/play/snake</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/2048</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/minesweeper</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/sudoku</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/memory</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/bubble-shooter</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/15puzzle</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/flappy</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/tap-rotate</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/color-match-shooter</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/chain-blast</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/one-bullet</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/crypt-run</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/brick-buster</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/gem-cascade</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/surv-swarm</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/color-flow</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/tris</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/dama</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/connect4</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/reaction-duel</loc></url>
+  <url><loc>https://200lire.pages.dev/#/play/tap-race</loc></url>
+</urlset>
