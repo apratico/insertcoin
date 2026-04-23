@@ -6,6 +6,7 @@ import { renderCover } from "./cover.js";
 import { db } from "../lib/storage.js";
 import { subscribeOnline, getOnlineCount } from "../lib/presence.js";
 import { isMuted, toggleMute, subscribeMute } from "../lib/audio.js";
+import { getMergedPlayCounts, type PlayCounts } from "../lib/stats.js";
 
 let root: HTMLElement | null = null;
 let unsubAuth: (() => void) | null = null;
@@ -77,8 +78,22 @@ async function buildGridFor(category: GameCategory): Promise<string> {
     const b = await personalBest(g.id);
     if (b > 0) bestMap.set(g.id, b);
   }));
+
+  const plays: PlayCounts = await getMergedPlayCounts();
+
+  // Sort: ready first, then soon. Within each group sort by play count desc,
+  // falling back to registry order (stable) when counts are equal.
   const list = GAMES.filter((g) => g.category === category);
-  return list.map((g) => tileHTML(g, bestMap.get(g.id))).join("\n");
+  const indexed = list.map((g, idx) => ({ g, idx, plays: plays.get(g.id) ?? 0 }));
+  indexed.sort((a, b) => {
+    const readyA = a.g.status === "ready" ? 0 : 1;
+    const readyB = b.g.status === "ready" ? 0 : 1;
+    if (readyA !== readyB) return readyA - readyB;
+    if (b.plays !== a.plays) return b.plays - a.plays;
+    return a.idx - b.idx;
+  });
+
+  return indexed.map(({ g }) => tileHTML(g, bestMap.get(g.id))).join("\n");
 }
 
 function tabsHTML(): string {

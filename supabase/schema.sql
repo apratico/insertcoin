@@ -97,3 +97,12 @@ returns table (nickname text, score int, played_at timestamptz, device_id text) 
   order by score desc, played_at asc
   limit greatest(p_limit, 1)
 $$ language sql stable;
+
+-- Play counts per game (most-played ranking)
+create or replace function public.plays_per_game()
+returns table (game_id text, plays bigint) as $$
+  select game_id, count(*)::bigint as plays
+  from public.scores
+  group by game_id
+  order by plays desc
+$$ language sql stable;
