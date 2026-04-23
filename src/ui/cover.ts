@@ -967,6 +967,7 @@ function artBody(entry: GameEntry): string {
       case "one-bullet": return oneBulletArt(id);
       case "brick-buster": return brickBusterArt(id);
       case "gem-cascade": return gemCascadeArt(id);
+      case "surv-swarm": return survSwarmArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1268,6 +1269,103 @@ function gemCascadeArt(id: string): string {
   const scoreLabel = `<text x="${ox + 2.5 * (cellSize + gap)}" y="${oy + 5 * (cellSize + gap) + 6}" font-family="'Press Start 2P',ui-monospace,monospace" font-size="6" font-weight="bold" text-anchor="middle" fill="#ff44ff" filter="url(#glow-${id})">+60 MATCH!</text>`;
 
   return cells.join("\n  ") + "\n  " + glow3 + "\n  " + scoreLabel;
+}
+
+function survSwarmArt(id: string): string {
+  // Dark arena background
+  const bg = `<rect width="160" height="100" fill="#0a0018"/>`;
+
+  // Faint radial grid
+  const gridLines: string[] = [];
+  for (let r = 20; r <= 90; r += 20)
+    gridLines.push(`<circle cx="80" cy="50" r="${r}" fill="none" stroke="#ffffff" stroke-opacity="0.04" stroke-width="0.5"/>`);
+  for (let a = 0; a < 360; a += 30) {
+    const rad = (a * Math.PI) / 180;
+    gridLines.push(`<line x1="80" y1="50" x2="${(80 + Math.cos(rad) * 90).toFixed(1)}" y2="${(50 + Math.sin(rad) * 90).toFixed(1)}" stroke="#ffffff" stroke-opacity="0.04" stroke-width="0.5"/>`);
+  }
+
+  // XP gems scattered
+  const gemData: [number, number, string][] = [
+    [28, 22, "#44aaff"], [38, 68, "#44ffaa"], [130, 30, "#44aaff"],
+    [118, 72, "#44ffaa"], [55, 80, "#ff4444"], [105, 20, "#44aaff"],
+    [148, 55, "#44aaff"], [20, 48, "#44ffaa"],
+  ];
+  const gems = gemData.map(([gx, gy, gc]) =>
+    `<polygon points="${gx},${gy - 5} ${gx + 3},${gy} ${gx},${gy + 5} ${gx - 3},${gy}" fill="${gc}" fill-opacity="0.85" filter="url(#glow-${id})"/>`
+  ).join("\n  ");
+
+  // Enemy sprites around the player (skeletons, zombies, bats)
+  function miniZombie(cx: number, cy: number): string {
+    return `<g>
+    <rect x="${cx - 4}" y="${cy - 8}" width="8" height="7" fill="#55bb55" rx="1"/>
+    <rect x="${cx - 2}" y="${cy - 6}" width="2" height="1" fill="#ff2200"/>
+    <rect x="${cx + 0}" y="${cy - 6}" width="2" height="1" fill="#ff2200"/>
+    <rect x="${cx - 3}" y="${cy - 1}" width="6" height="6" fill="#44aa44"/>
+    <rect x="${cx - 5}" y="${cy}" width="3" height="4" fill="#44aa44"/>
+    <rect x="${cx + 2}" y="${cy}" width="3" height="4" fill="#44aa44"/>
+    <rect x="${cx - 3}" y="${cy + 5}" width="2" height="4" fill="#336633"/>
+    <rect x="${cx + 1}" y="${cy + 5}" width="2" height="4" fill="#336633"/>
+  </g>`;
+  }
+
+  function miniBat(cx: number, cy: number): string {
+    return `<g>
+    <ellipse cx="${cx}" cy="${cy}" rx="5" ry="4" fill="#220033"/>
+    <path d="M${cx - 2} ${cy} Q${cx - 8} ${cy - 6} ${cx - 10} ${cy - 1} Q${cx - 8} ${cy} ${cx - 2} ${cy}" fill="#440044"/>
+    <path d="M${cx + 2} ${cy} Q${cx + 8} ${cy - 6} ${cx + 10} ${cy - 1} Q${cx + 8} ${cy} ${cx + 2} ${cy}" fill="#440044"/>
+    <rect x="${cx - 3}" y="${cy - 1}" width="2" height="2" fill="#ff6600"/>
+    <rect x="${cx + 1}" y="${cy - 1}" width="2" height="2" fill="#ff6600"/>
+  </g>`;
+  }
+
+  function miniSkeleton(cx: number, cy: number): string {
+    return `<g>
+    <rect x="${cx - 4}" y="${cy - 9}" width="8" height="7" fill="#eeeebb" rx="1"/>
+    <rect x="${cx - 2}" y="${cy - 8}" width="2" height="2" fill="#000" fill-opacity="0.7"/>
+    <rect x="${cx + 0}" y="${cy - 8}" width="2" height="2" fill="#000" fill-opacity="0.7"/>
+    <rect x="${cx - 2}" y="${cy - 2}" width="4" height="7" fill="#ddddaa"/>
+    <rect x="${cx - 5}" y="${cy - 1}" width="10" height="2" fill="#ccccaa"/>
+    <rect x="${cx - 2}" y="${cy + 5}" width="2" height="4" fill="#ccccaa"/>
+    <rect x="${cx + 0}" y="${cy + 5}" width="2" height="4" fill="#ccccaa"/>
+  </g>`;
+  }
+
+  // Place 20 enemies in a ring around the center player
+  const enemyPositions: [number, number, number][] = [
+    [30, 20, 0], [52, 12, 1], [75, 10, 2], [98, 13, 0], [118, 22, 1],
+    [135, 35, 2], [145, 52, 0], [140, 68, 1], [128, 80, 2], [110, 88, 0],
+    [88, 92, 1], [66, 90, 2], [46, 84, 0], [28, 72, 1], [18, 57, 2],
+    [20, 38, 0], [136, 20, 1], [148, 38, 2], [22, 60, 0], [140, 62, 1],
+  ];
+  const enemySprites = enemyPositions.map(([ex, ey, et]) => {
+    if (et === 0) return miniZombie(ex, ey);
+    if (et === 1) return miniBat(ex, ey);
+    return miniSkeleton(ex, ey);
+  }).join("\n  ");
+
+  // Sword arc effect from player center
+  const swordArc = `<path d="M80 50 L${(80 + Math.cos(-0.6) * 38).toFixed(1)} ${(50 + Math.sin(-0.6) * 38).toFixed(1)} A38 38 0 0 1 ${(80 + Math.cos(0.6) * 38).toFixed(1)} ${(50 + Math.sin(0.6) * 38).toFixed(1)} Z"
+    fill="rgba(170,221,255,0.18)" stroke="#aaddff" stroke-width="1.5" filter="url(#glow-${id})"/>`;
+
+  // Particle sparks around player
+  const sparks: string[] = [];
+  const sparkAngles = [0.3, 1.1, 2.0, 3.4, 4.5, 5.3];
+  for (const sa of sparkAngles) {
+    const sx1 = 80 + Math.cos(sa) * 18;
+    const sy1 = 50 + Math.sin(sa) * 18;
+    const sx2 = 80 + Math.cos(sa) * 26;
+    const sy2 = 50 + Math.sin(sa) * 26;
+    sparks.push(`<line x1="${sx1.toFixed(1)}" y1="${sy1.toFixed(1)}" x2="${sx2.toFixed(1)}" y2="${sy2.toFixed(1)}" stroke="#ff8888" stroke-width="1.2" stroke-opacity="0.7"/>`);
+  }
+
+  // Player — blue neon circle center
+  const player = `<circle cx="80" cy="50" r="17" fill="none" stroke="#4488ff" stroke-width="3" filter="url(#glow2-${id})"/>
+  <circle cx="80" cy="50" r="14" fill="#2255cc" filter="url(#glow-${id})"/>
+  <circle cx="80" cy="50" r="7" fill="#5588ff"/>
+  <circle cx="88" cy="47" r="3" fill="#ffffff"/>`;
+
+  return bg + "\n  " + gridLines.join("\n  ") + "\n  " + gems + "\n  " + enemySprites
+    + "\n  " + sparks.join("\n  ") + "\n  " + swordArc + "\n  " + player;
 }
 
 function defaultArt(id: string, accent: string): string {

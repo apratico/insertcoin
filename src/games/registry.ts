@@ -170,6 +170,16 @@ export const GAMES: GameEntry[] = [
     status: "ready",
     load: () => import("./gem-cascade/index.js"),
   },
+  {
+    id: "surv-swarm",
+    title: "Surv Swarm",
+    tagline: "Sopravvivi all'orda.",
+    palette: { bg: "#0a0018", fg: "#ffffff", accent: "#ff2266" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    load: () => import("./surv-swarm/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)
