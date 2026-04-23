@@ -65,57 +65,79 @@ function generateLevel(level: number): Tube[] {
     solved.push([]);
   }
 
-  const shuffleMoves = Math.max(4, level * 2);
+  // Do many scramble moves with PARTIAL block moves — otherwise mono-color
+  // tubes just relocate whole and the state stays trivially solved.
+  const shuffleMoves = Math.max(20, level * 6 + 20);
   let state = cloneTubes(solved);
 
-  // Reverse-pour: pick a non-empty tube, pick a different tube with room, move top block
   const rng = (n: number): number => Math.floor(Math.random() * n);
 
   for (let m = 0; m < shuffleMoves; m++) {
-    // Collect all candidate sources (non-empty)
     const sources = state
       .map((t, i) => ({ i, t }))
       .filter(({ t }) => t.length > 0);
-
     if (sources.length === 0) break;
 
-    // Pick a random source
     const src = sources[rng(sources.length)]!;
-    const topColor = src.t[src.t.length - 1]!;
+    const tc = src.t[src.t.length - 1]!;
 
-    // Count consecutive top units of same color
-    let blockSize = 0;
+    // Count consecutive top same-color
+    let topRun = 0;
     for (let j = src.t.length - 1; j >= 0; j--) {
-      if (src.t[j] === topColor) blockSize++;
+      if (src.t[j] === tc) topRun++;
       else break;
     }
 
-    // Candidate destinations: different tube, has room for blockSize, not same single-color-full
+    // Candidate destinations with different top color and any room > 0
     const dests = state
       .map((t, i) => ({ i, t }))
       .filter(({ i, t }) => {
         if (i === src.i) return false;
         const room = CAPACITY - t.length;
-        if (room < blockSize) return false;
-        // Avoid moving back onto exactly same top color (would be no-op)
-        if (t.length > 0 && t[t.length - 1] === topColor) return false;
+        if (room <= 0) return false;
+        if (t.length > 0 && t[t.length - 1] === tc) return false;
         return true;
       });
-
     if (dests.length === 0) continue;
 
     const dst = dests[rng(dests.length)]!;
+    const room = CAPACITY - dst.t.length;
 
-    // Execute the split: remove block from src, add to dst
+    // Pick partial block size 1..min(topRun, room) — favor smaller to mix more
+    const maxMove = Math.min(topRun, room);
+    const moveN = 1 + rng(maxMove);
+
     const newState = cloneTubes(state);
-    for (let j = 0; j < blockSize; j++) {
+    for (let j = 0; j < moveN; j++) {
       const unit = newState[src.i]!.pop();
       if (unit !== undefined) newState[dst.i]!.push(unit);
     }
     state = newState;
   }
 
+  // Final safety: if by pure unlucky RNG we ended up solved, force a few extra
+  // partial swaps between random non-empty + empty tubes.
+  while (isTrivialSolved(state)) {
+    const nonEmpty = state.map((t, i) => ({ i, t })).filter(({ t }) => t.length > 0);
+    if (nonEmpty.length === 0) break;
+    const s = nonEmpty[rng(nonEmpty.length)]!;
+    const target = state.findIndex((t, i) => i !== s.i && CAPACITY - t.length > 0);
+    if (target < 0) break;
+    const unit = state[s.i]!.pop();
+    if (unit !== undefined) state[target]!.push(unit);
+  }
+
   return state;
+}
+
+function isTrivialSolved(state: Tube[]): boolean {
+  for (const t of state) {
+    if (t.length === 0) continue;
+    if (t.length !== CAPACITY) return false;
+    const first = t[0];
+    for (const u of t) if (u !== first) return false;
+  }
+  return true;
 }
 
 // ---------- pour logic ----------
