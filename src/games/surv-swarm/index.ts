@@ -733,7 +733,8 @@ export function mount(container: HTMLElement): () => void {
   }
 
   function spawnRate(): number {
-    return Math.max(500, 2000 - timeSec * 10);
+    // Much tighter cadence — swarm-heaven needs density from the first seconds
+    return Math.max(120, 600 - timeSec * 4);
   }
 
   function countLiveEnemies(): number {
@@ -742,14 +743,27 @@ export function mount(container: HTMLElement): () => void {
     return n;
   }
 
+  function spawnBatchCount(): number {
+    // Spawn multiple per tick to hit visible density quickly
+    if (timeSec < 10) return 3;
+    if (timeSec < 30) return 4;
+    if (timeSec < 60) return 5;
+    if (timeSec < 120) return 6;
+    return 8;
+  }
+
   function doSpawn(): void {
-    if (countLiveEnemies() >= MAX_ENEMIES) return;
-    const kind = pickEnemyKind();
-    const angle = Math.random() * Math.PI * 2;
-    const dist = Math.max(cw, ch) * 0.6 + 50;
-    const wx = player.wx + Math.cos(angle) * dist;
-    const wy = player.wy + Math.sin(angle) * dist;
-    spawnEnemy(enemies, kind, wx, wy);
+    const batch = spawnBatchCount();
+    for (let i = 0; i < batch; i++) {
+      if (countLiveEnemies() >= MAX_ENEMIES) return;
+      const kind = pickEnemyKind();
+      const angle = Math.random() * Math.PI * 2;
+      // Spawn just past the screen edge so enemies reach the player in ~2s
+      const dist = Math.max(cw, ch) * 0.45 + 30;
+      const wx = player.wx + Math.cos(angle) * dist;
+      const wy = player.wy + Math.sin(angle) * dist;
+      spawnEnemy(enemies, kind, wx, wy);
+    }
   }
 
   // ─── weapon update ────────────────────────────────────────────────────────
