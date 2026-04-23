@@ -190,6 +190,16 @@ export const GAMES: GameEntry[] = [
     status: "ready",
     load: () => import("./color-flow/index.js"),
   },
+  {
+    id: "block-fit",
+    title: "Block Fit",
+    tagline: "Place. Clear. Survive.",
+    palette: { bg: "#0b0a24", fg: "#ffffff", accent: "#22ddff" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    load: () => import("./block-fit/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

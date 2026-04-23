@@ -969,6 +969,7 @@ function artBody(entry: GameEntry): string {
       case "gem-cascade": return gemCascadeArt(id);
       case "surv-swarm": return survSwarmArt(id);
       case "color-flow": return colorFlowArt(id);
+      case "block-fit": return blockFitArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1456,6 +1457,83 @@ function colorFlowArt(id: string): string {
   ].join("\n  ");
 
   return tubes + "\n  " + pourLine + "\n  " + drops;
+}
+
+function blockFitArt(id: string): string {
+  // 8x8 grid (partial) + 3 tray shapes below + clearing row highlight
+  const cellW = 13;
+  const cellH = 13;
+  const gap = 1;
+  const ox = 6;
+  const oy = 4;
+  const step = cellW + gap;
+
+  // color palette for placed blocks
+  const colors = [
+    "#ff3344", "#ff8822", "#ffee00", "#44ff66",
+    "#22ddff", "#2266ff", "#aa44ff", "#ff44aa",
+  ];
+
+  // fixed grid layout: 0=empty, 1-8=color index
+  const layout: number[][] = [
+    [0, 0, 0, 1, 1, 0, 0, 0],
+    [0, 2, 0, 1, 1, 0, 3, 3],
+    [0, 2, 0, 0, 0, 0, 3, 3],
+    [4, 4, 4, 4, 4, 4, 4, 4], // full row — will be highlighted
+    [5, 0, 0, 6, 6, 0, 0, 7],
+    [5, 0, 0, 6, 6, 0, 0, 7],
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0],
+  ];
+
+  const clearRow = 3;
+
+  const cells: string[] = [];
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const x = ox + c * step;
+      const y = oy + r * step;
+      const v = layout[r]![c]!;
+      const isClearing = r === clearRow;
+      if (v === 0) {
+        cells.push(`<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" rx="2" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.07)" stroke-width="0.5"/>`);
+      } else {
+        const color = colors[(v - 1) % colors.length]!;
+        const gf = isClearing ? `filter="url(#glow2-${id})"` : `filter="url(#glow-${id})"`;
+        cells.push(`<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" rx="2" fill="${color}" ${gf}/>`);
+        if (isClearing) {
+          cells.push(`<rect x="${x + 1}" y="${y + 1}" width="${cellW - 2}" height="3" rx="1" fill="rgba(255,255,255,0.35)"/>`);
+        }
+      }
+    }
+  }
+
+  // clearing row flash ring
+  const clearY = oy + clearRow * step - 1;
+  const clearRing = `<rect x="${ox - 2}" y="${clearY}" width="${8 * step}" height="${cellH + 2}" rx="3" fill="none" stroke="#ffee00" stroke-width="1.5" stroke-opacity="0.85" filter="url(#glow2-${id})"/>`;
+
+  // tray area: 3 mini shapes below the grid
+  const trayY = oy + 8 * step + 5;
+
+  // shape 1: 2x2 square (cyan)
+  function trayShape(shapes: [number, number][], color: string, ox2: number, oy2: number, cs: number): string {
+    return shapes.map(([r, c]) =>
+      `<rect x="${ox2 + c * (cs + 1)}" y="${oy2 + r * (cs + 1)}" width="${cs}" height="${cs}" rx="2" fill="${color}" filter="url(#glow-${id})"/>`
+    ).join("\n  ");
+  }
+
+  const shape1 = trayShape([[0,0],[0,1],[1,0],[1,1]], "#22ddff", 16, trayY, 9);
+  const shape2 = trayShape([[0,0],[1,0],[2,0]], "#ff8822", 56, trayY, 9);
+  const shape3 = trayShape([[0,0],[0,1],[0,2],[1,0]], "#44ff66", 88, trayY, 9);
+
+  // slot backgrounds
+  const slots = [
+    `<rect x="10" y="${trayY - 3}" width="32" height="28" rx="4" fill="rgba(34,221,255,0.06)" stroke="rgba(34,221,255,0.2)" stroke-width="0.8"/>`,
+    `<rect x="48" y="${trayY - 3}" width="22" height="34" rx="4" fill="rgba(255,136,34,0.06)" stroke="rgba(255,136,34,0.2)" stroke-width="0.8"/>`,
+    `<rect x="82" y="${trayY - 3}" width="36" height="28" rx="4" fill="rgba(68,255,102,0.06)" stroke="rgba(68,255,102,0.2)" stroke-width="0.8"/>`,
+  ].join("\n  ");
+
+  return cells.join("\n  ") + "\n  " + clearRing + "\n  " + slots + "\n  " + shape1 + "\n  " + shape2 + "\n  " + shape3;
 }
 
 function defaultArt(id: string, accent: string): string {
