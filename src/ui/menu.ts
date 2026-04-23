@@ -14,7 +14,19 @@ let unsubPresence: (() => void) | null = null;
 let unsubMute: (() => void) | null = null;
 
 const TAB_KEY = "menu:tab";
+const SORT_KEY = "menu:sort";
+
+type SortMode = "played" | "alpha" | "recent" | "best";
+
+const SORT_LABELS: Record<SortMode, string> = {
+  played: "Più giocati",
+  alpha:  "A → Z",
+  recent: "Recenti",
+  best:   "Miglior record",
+};
+
 let activeTab: GameCategory = "solo";
+let activeSort: SortMode = "played";
 
 // ---------- render ----------
 
@@ -71,6 +83,18 @@ function tileHTML(g: GameEntry, best: number | undefined): string {
     </article>`;
 }
 
+async function loadRecentMap(): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  try {
+    const rows = await db.scores.toArray();
+    for (const r of rows) {
+      const prev = out.get(r.gameId) ?? 0;
+      if (r.playedAt > prev) out.set(r.gameId, r.playedAt);
+    }
+  } catch { /* ignore */ }
+  return out;
+}
+
 async function buildGridFor(category: GameCategory): Promise<string> {
   const readyGames = GAMES.filter((g) => g.status === "ready" && g.category === category);
   const bestMap = new Map<string, number>();
@@ -79,18 +103,40 @@ async function buildGridFor(category: GameCategory): Promise<string> {
     if (b > 0) bestMap.set(g.id, b);
   }));
 
-  const plays: PlayCounts = await getMergedPlayCounts();
+  const plays: PlayCounts = activeSort === "played" ? await getMergedPlayCounts() : new Map();
+  const recent = activeSort === "recent" ? await loadRecentMap() : new Map<string, number>();
 
-  // Sort: ready first, then soon. Within each group sort by play count desc,
-  // falling back to registry order (stable) when counts are equal.
   const list = GAMES.filter((g) => g.category === category);
-  const indexed = list.map((g, idx) => ({ g, idx, plays: plays.get(g.id) ?? 0 }));
+  const indexed = list.map((g, idx) => ({ g, idx }));
+
   indexed.sort((a, b) => {
+    // ready always before soon
     const readyA = a.g.status === "ready" ? 0 : 1;
     const readyB = b.g.status === "ready" ? 0 : 1;
     if (readyA !== readyB) return readyA - readyB;
-    if (b.plays !== a.plays) return b.plays - a.plays;
-    return a.idx - b.idx;
+
+    switch (activeSort) {
+      case "alpha":
+        return a.g.title.localeCompare(b.g.title, "it");
+      case "played": {
+        const pa = plays.get(a.g.id) ?? 0;
+        const pb = plays.get(b.g.id) ?? 0;
+        if (pb !== pa) return pb - pa;
+        return a.idx - b.idx;
+      }
+      case "recent": {
+        const ra = recent.get(a.g.id) ?? 0;
+        const rb = recent.get(b.g.id) ?? 0;
+        if (rb !== ra) return rb - ra;
+        return a.idx - b.idx;
+      }
+      case "best": {
+        const ba = bestMap.get(a.g.id) ?? 0;
+        const bb = bestMap.get(b.g.id) ?? 0;
+        if (bb !== ba) return bb - ba;
+        return a.idx - b.idx;
+      }
+    }
   });
 
   return indexed.map(({ g }) => tileHTML(g, bestMap.get(g.id))).join("\n");
@@ -110,6 +156,10 @@ function tabsHTML(): string {
       <span class="menu-tab-label">COMPAGNIA</span>
       <span class="menu-tab-count">${coReady}/${coTotal}</span>
     </button>
+    <button class="menu-sort-btn" id="menu-sort-btn" aria-label="Ordina">
+      <span class="menu-sort-icon">↕</span>
+      <span class="menu-sort-label">${SORT_LABELS[activeSort]}</span>
+    </button>
   </nav>`;
 }
 
@@ -127,10 +177,72 @@ async function saveActiveTab(tab: GameCategory): Promise<void> {
   } catch { /* non-critical */ }
 }
 
+async function loadActiveSort(): Promise<SortMode> {
+  try {
+    const row = await db.settings.get(SORT_KEY);
+    const v = row?.value;
+    if (v === "played" || v === "alpha" || v === "recent" || v === "best") return v;
+  } catch { /* non-critical */ }
+  return "played";
+}
+
+async function saveActiveSort(s: SortMode): Promise<void> {
+  try {
+    await db.settings.put({ key: SORT_KEY, value: s });
+  } catch { /* non-critical */ }
+}
+
+function showSortPicker(): void {
+  if (!root) return;
+  const overlay = document.createElement("div");
+  overlay.className = "nick-overlay";
+  overlay.innerHTML = `
+    <div class="nick-dialog" role="dialog" aria-modal="true" aria-label="Ordina giochi">
+      <h2 class="nick-dialog-title">ORDINA GIOCHI</h2>
+      <div class="sort-options">
+        ${(Object.keys(SORT_LABELS) as SortMode[]).map((m) => `
+          <button class="btn sort-opt${m === activeSort ? " is-active" : ""}" data-sort="${m}">
+            ${SORT_LABELS[m]}${m === activeSort ? " ✓" : ""}
+          </button>
+        `).join("")}
+      </div>
+      <div class="nick-dialog-actions">
+        <button class="btn btn-cancel" id="sort-close">CHIUDI</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelectorAll<HTMLElement>(".sort-opt").forEach((btn) => {
+    btn.addEventListener("pointerup", () => {
+      const m = btn.dataset["sort"] as SortMode | undefined;
+      if (!m) return;
+      activeSort = m;
+      void saveActiveSort(m);
+      overlay.remove();
+      void refreshGrid();
+    });
+  });
+  overlay.querySelector("#sort-close")?.addEventListener("pointerup", () => overlay.remove());
+  overlay.addEventListener("pointerdown", (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+}
+
+async function refreshGrid(): Promise<void> {
+  if (!root) return;
+  const grid = root.querySelector<HTMLElement>("#game-grid");
+  if (grid) grid.innerHTML = await buildGridFor(activeTab);
+  const sortBtn = root.querySelector<HTMLElement>(".menu-sort-label");
+  if (sortBtn) sortBtn.textContent = SORT_LABELS[activeSort];
+  attachHandlers();
+}
+
 async function render(): Promise<void> {
   if (!root) return;
   const profile = getProfile();
   activeTab = await loadActiveTab();
+  activeSort = await loadActiveSort();
   const grid = await buildGridFor(activeTab);
 
   root.innerHTML = `
@@ -178,9 +290,7 @@ async function switchTab(tab: GameCategory): Promise<void> {
     el.classList.toggle("is-active", on);
     el.setAttribute("aria-selected", String(on));
   });
-  const grid = root.querySelector<HTMLElement>("#game-grid");
-  if (grid) grid.innerHTML = await buildGridFor(tab);
-  attachHandlers();
+  await refreshGrid();
 }
 
 // ---------- event handling ----------
@@ -196,6 +306,10 @@ function attachHandlers(): void {
     });
   });
 
+  // Sort button
+  const sortBtn = root.querySelector<HTMLElement>("#menu-sort-btn");
+  sortBtn?.addEventListener("pointerup", () => showSortPicker());
+
   // Nick button
   const nickBtn = root.querySelector<HTMLElement>("#nick-btn");
   nickBtn?.addEventListener("pointerup", () => {
@@ -210,11 +324,10 @@ function attachHandlers(): void {
 
   // Trophy buttons — navigate to leaderboard without opening game
   root.querySelectorAll<HTMLElement>(".tile-trophy-btn").forEach((btn) => {
-    btn.addEventListener("pointerdown", (e) => {
-      e.stopPropagation();
-    });
+    const stop = (e: Event): void => { e.stopPropagation(); };
+    btn.addEventListener("pointerdown", stop);
     btn.addEventListener("pointerup", (e) => {
-      e.stopPropagation();
+      stop(e);
       const id = btn.dataset["scoresId"];
       if (id) navigate(`/scores/${id}`);
     });

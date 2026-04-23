@@ -243,6 +243,48 @@ html, body {
   font-weight: 500;
 }
 
+.menu-sort-btn {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+}
+.menu-sort-btn:active { background: var(--surface); }
+.menu-sort-icon { color: var(--accent); font-size: 14px; }
+.menu-sort-label { max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.sort-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sort-opt {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 12px;
+  border-radius: 6px;
+  text-align: left;
+}
+.sort-opt.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(246, 194, 76, 0.08);
+}
+
 .game-grid-menu {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
