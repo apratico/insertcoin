@@ -314,11 +314,17 @@ function render(
   // Cannon base
   const cannonX = canvasW / 2;
   const cannonY = canvasH - bubbleR * 3.5;
+  const bw = bubbleR * 0.65;
+  const bh = bubbleR * 2.2;
 
-  // Aim ray
+  // Tip position — where the bubble sits + where the ray must start
+  const tipX = cannonX + Math.sin(state.aimAngle) * bh;
+  const tipY = cannonY - Math.cos(state.aimAngle) * bh;
+
+  // Aim ray (starts from bubble tip, not cannon base)
   if (state.phase === "playing") {
     const rayPoints = computeAimRay(
-      cannonX, cannonY - bubbleR,
+      tipX, tipY,
       state.aimAngle, canvasW,
       3, canvasW * 4
     );
@@ -333,9 +339,6 @@ function render(
   ctx.save();
   ctx.translate(cannonX, cannonY);
   ctx.rotate(state.aimAngle);
-  // Barrel
-  const bw = bubbleR * 0.65;
-  const bh = bubbleR * 2.2;
   ctx.fillStyle = "#334466";
   ctx.beginPath();
   ctx.roundRect(-bw / 2, -bh, bw, bh, bw / 2);
@@ -355,8 +358,6 @@ function render(
   ctx.stroke();
 
   // Current bubble on cannon tip
-  const tipX = cannonX + Math.sin(state.aimAngle) * bh;
-  const tipY = cannonY - Math.cos(state.aimAngle) * bh;
   if (!state.flying) {
     drawGlossyBubble(ctx, tipX, tipY, bubbleR - 2, state.currentColor);
   }
