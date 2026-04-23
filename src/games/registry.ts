@@ -254,6 +254,16 @@ export const GAMES: GameEntry[] = [
     status: "ready",
     load: () => import("./tap-race/index.js"),
   },
+  {
+    id: "chain-reaction",
+    title: "Chain Reaction",
+    tagline: "Esplosioni a catena strategiche.",
+    palette: { bg: "#0a0a2a", fg: "#ffffff", accent: "#ff44aa" },
+    category: "company",
+    modes: ["local2p"],
+    status: "ready",
+    load: () => import("./chain-reaction/index.js"),
+  },
 ];
 
 export function getGame(id: string): GameEntry | undefined {

@@ -962,6 +962,7 @@ function artBody(entry: GameEntry): string {
       case "reaction-duel": return reactionDuelArt(id);
       case "tap-race": return tapRaceArt(id);
       case "connect4": return connect4Art(id);
+      case "chain-reaction": return chainReactionArt(id);
       case "chain-blast": return chainBlastArt(id);
       case "crypt-run": return cryptRunArt(id);
       case "one-bullet": return oneBulletArt(id);
@@ -1534,6 +1535,118 @@ function blockFitArt(id: string): string {
   ].join("\n  ");
 
   return cells.join("\n  ") + "\n  " + clearRing + "\n  " + slots + "\n  " + shape1 + "\n  " + shape2 + "\n  " + shape3;
+}
+
+function chainReactionArt(id: string): string {
+  // 6×9 grid, partial cells with orbs, one exploding cell with directional arrows
+  const COLS = 6;
+  const ROWS = 7; // show top 7 rows in viewBox 160×100
+  const cellW = 22;
+  const cellH = 12;
+  const gapX = 2;
+  const gapY = 2;
+  const ox = 8;
+  const oy = 2;
+
+  const p1Color = "#22ddff";
+  const p2Color = "#ff3344";
+  const explodeIdx = 2 + 3 * COLS; // col 2, row 3 — inner cell
+
+  // Fixed orb layout: [owner 0=empty,1=P1,2=P2, count]
+  type CellDef = [number, number]; // [owner, orbs]
+  const layout: CellDef[] = Array<CellDef>(COLS * ROWS).fill([0, 0]);
+  // Scatter a few P1 and P2 orbs
+  layout[1]  = [1, 2];
+  layout[4]  = [2, 1];
+  layout[7]  = [1, 3];
+  layout[9]  = [2, 2];
+  layout[13] = [1, 1];
+  layout[16] = [2, 3];
+  layout[20] = [1, 2];
+  layout[22] = [2, 1];
+  layout[25] = [1, 3];
+  layout[27] = [2, 2];
+  layout[29] = [1, 1];
+  layout[explodeIdx] = [1, 4]; // this cell is at capacity — exploding
+
+  const cells: string[] = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const idx = r * COLS + c;
+      const x = ox + c * (cellW + gapX);
+      const y = oy + r * (cellH + gapY);
+      const [owner, orbs] = layout[idx] ?? [0, 0];
+      const isExploding = idx === explodeIdx;
+      const color = owner === 1 ? p1Color : p2Color;
+
+      const fill = isExploding
+        ? "rgba(255,255,255,0.85)"
+        : owner === 0
+          ? "rgba(255,255,255,0.03)"
+          : `${color}22`;
+
+      const stroke = owner === 0
+        ? "rgba(255,255,255,0.12)"
+        : isExploding
+          ? "#ffffff"
+          : color;
+
+      const strokeW = isExploding ? "1.5" : "0.8";
+      const gf = isExploding ? ` filter="url(#glow2-${id})"` : owner !== 0 ? ` filter="url(#glow-${id})"` : "";
+
+      cells.push(`<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="${strokeW}"${gf}/>`);
+
+      // Draw orb dots in cell (tiny circles)
+      if (owner !== 0 && !isExploding && orbs > 0) {
+        const dotR = 1.8;
+        const cx = x + cellW / 2;
+        const cy = y + cellH / 2;
+        const dotPositions: [number, number][] =
+          orbs === 1 ? [[cx, cy]] :
+          orbs === 2 ? [[cx - 4, cy], [cx + 4, cy]] :
+          [[cx, cy - 3], [cx - 4, cy + 2.5], [cx + 4, cy + 2.5]];
+        for (const [dx, dy] of dotPositions) {
+          cells.push(`<circle cx="${dx}" cy="${dy}" r="${dotR}" fill="${color}" fill-opacity="0.9"/>`);
+        }
+      }
+    }
+  }
+
+  // Exploding cell: draw 4 directional spark arrows from cell center outward
+  const ex = ox + 2 * (cellW + gapX) + cellW / 2;
+  const ey = oy + 3 * (cellH + gapY) + cellH / 2;
+  const arrowLen = 10;
+  const dirs: [number, number][] = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  const arrows = dirs.map(([dx, dy]) => {
+    const x1 = (ex + dx * 2).toFixed(1);
+    const y1 = (ey + dy * 2).toFixed(1);
+    const x2 = (ex + dx * (arrowLen + 2)).toFixed(1);
+    const y2 = (ey + dy * (arrowLen + 2)).toFixed(1);
+    // arrowhead tip
+    const tipX = (ex + dx * (arrowLen + 5)).toFixed(1);
+    const tipY = (ey + dy * (arrowLen + 5)).toFixed(1);
+    // perpendicular for arrowhead base
+    const px = dy * 2;
+    const py = dx * 2;
+    const ah1x = (ex + dx * (arrowLen + 2) + px).toFixed(1);
+    const ah1y = (ey + dy * (arrowLen + 2) + py).toFixed(1);
+    const ah2x = (ex + dx * (arrowLen + 2) - px).toFixed(1);
+    const ah2y = (ey + dy * (arrowLen + 2) - py).toFixed(1);
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.9" filter="url(#glow2-${id})"/>
+  <polygon points="${tipX},${tipY} ${ah1x},${ah1y} ${ah2x},${ah2y}" fill="#ffffff" fill-opacity="0.9" filter="url(#glow2-${id})"/>`;
+  }).join("\n  ");
+
+  // Particles (small dots radiating)
+  const particleAngles = [20, 65, 115, 160, 200, 245, 295, 340];
+  const particles = particleAngles.map((a, i) => {
+    const rad = (a * Math.PI) / 180;
+    const dist = 8 + (i % 3) * 3;
+    const px2 = (ex + Math.cos(rad) * dist).toFixed(1);
+    const py2 = (ey + Math.sin(rad) * dist).toFixed(1);
+    return `<circle cx="${px2}" cy="${py2}" r="${1 + (i % 2) * 0.6}" fill="#ff44aa" fill-opacity="0.8" filter="url(#glow-${id})"/>`;
+  }).join("\n  ");
+
+  return cells.join("\n  ") + "\n  " + arrows + "\n  " + particles;
 }
 
 function defaultArt(id: string, accent: string): string {
