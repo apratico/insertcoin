@@ -12,45 +12,88 @@ const DESIGN_H = 640;
 
 type WeaponLevel = 1 | 2 | 3 | 4 | 5;
 type WeaponType = "basic" | "spread" | "wide" | "laser" | "homing";
-type EnemyKind = "grunt" | "chaser" | "diver" | "gunner" | "shooter" | "boss1" | "boss2";
+type EnemyKind =
+  | "grunt" | "chaser" | "diver" | "gunner" | "shooter"
+  | "zigzag" | "tank" | "swarm"
+  | "boss1" | "boss2" | "boss3";
+type BossKind = "boss1" | "boss2" | "boss3";
 
 interface WaveEvent {
   at: number;
   type: EnemyKind;
   count?: number;
   pattern?: string;
+  round?: number;
 }
 
+// ─── round system ─────────────────────────────────────────────────────────────
+// Each round = stream of waves terminated by a boss. Boss kill grants a
+// permanent weapon reward, plays a banner, then next round starts.
+
+interface RoundDef {
+  name: string;
+  color: string;
+  reward: WeaponType;
+  rewardLabel: string;
+}
+
+const ROUNDS: RoundDef[] = [
+  { name: "SECTOR ALPHA", color: "#88ddff", reward: "spread", rewardLabel: "SPREAD SHOT" },
+  { name: "SECTOR BETA",  color: "#ffcc22", reward: "wide",   rewardLabel: "WIDE CANNON" },
+  { name: "SECTOR OMEGA", color: "#ff3366", reward: "homing", rewardLabel: "HOMING MISSILES" },
+];
+
 // ─── wave timeline ────────────────────────────────────────────────────────────
+// Dense pacing: an event every 3-5s so the screen never empties.
 
 const WAVE_TIMELINE: WaveEvent[] = [
-  { at: 2,   type: "grunt",   count: 8,  pattern: "straight-line" },
-  { at: 8,   type: "chaser",  count: 4 },
-  { at: 15,  type: "diver",   count: 6 },
-  { at: 25,  type: "gunner",  count: 2 },
-  { at: 35,  type: "grunt",   count: 12, pattern: "v-formation" },
-  { at: 45,  type: "chaser",  count: 5 },
-  { at: 55,  type: "diver",   count: 4 },
-  { at: 65,  type: "gunner",  count: 2 },
-  { at: 75,  type: "shooter", count: 1 },
-  { at: 80,  type: "grunt",   count: 15, pattern: "straight-line" },
-  { at: 90,  type: "boss1" },
-  { at: 100, type: "grunt",   count: 15 },
-  { at: 110, type: "chaser",  count: 6 },
-  { at: 120, type: "diver",   count: 8 },
-  { at: 130, type: "gunner",  count: 3 },
-  { at: 140, type: "shooter", count: 2 },
-  { at: 150, type: "grunt",   count: 20, pattern: "v-formation" },
-  { at: 165, type: "chaser",  count: 8 },
-  { at: 175, type: "shooter", count: 3 },
-  { at: 180, type: "boss2" },
+  // ─── ROUND 1: Sector Alpha (ends with boss1) ───
+  { at: 2,   type: "grunt",   count: 8,  pattern: "straight-line", round: 1 },
+  { at: 6,   type: "grunt",   count: 6,  pattern: "v-formation",   round: 1 },
+  { at: 10,  type: "chaser",  count: 4,                             round: 1 },
+  { at: 14,  type: "swarm",   count: 14,                            round: 1 },
+  { at: 18,  type: "zigzag",  count: 5,                             round: 1 },
+  { at: 23,  type: "diver",   count: 6,                             round: 1 },
+  { at: 28,  type: "grunt",   count: 10, pattern: "v-formation",   round: 1 },
+  { at: 33,  type: "chaser",  count: 5,                             round: 1 },
+  { at: 38,  type: "zigzag",  count: 6,                             round: 1 },
+  { at: 43,  type: "swarm",   count: 18,                            round: 1 },
+  { at: 48,  type: "gunner",  count: 2,                             round: 1 },
+  { at: 55,  type: "boss1",                                          round: 1 },
+  // ─── ROUND 2: Sector Beta (ends with boss2) ───
+  { at: 75,  type: "chaser",  count: 6,                             round: 2 },
+  { at: 80,  type: "zigzag",  count: 8,                             round: 2 },
+  { at: 85,  type: "tank",    count: 1,                             round: 2 },
+  { at: 90,  type: "swarm",   count: 20,                            round: 2 },
+  { at: 95,  type: "diver",   count: 8,                             round: 2 },
+  { at: 100, type: "zigzag",  count: 10,                            round: 2 },
+  { at: 105, type: "gunner",  count: 3,                             round: 2 },
+  { at: 110, type: "grunt",   count: 14, pattern: "v-formation",   round: 2 },
+  { at: 115, type: "shooter", count: 2,                             round: 2 },
+  { at: 120, type: "tank",    count: 2,                             round: 2 },
+  { at: 125, type: "chaser",  count: 10,                            round: 2 },
+  { at: 132, type: "boss2",                                          round: 2 },
+  // ─── ROUND 3: Sector Omega (ends with boss3) ───
+  { at: 152, type: "zigzag",  count: 12,                            round: 3 },
+  { at: 157, type: "swarm",   count: 28,                            round: 3 },
+  { at: 162, type: "tank",    count: 2,                             round: 3 },
+  { at: 167, type: "shooter", count: 3,                             round: 3 },
+  { at: 172, type: "diver",   count: 12,                            round: 3 },
+  { at: 177, type: "chaser",  count: 10,                            round: 3 },
+  { at: 182, type: "gunner",  count: 4,                             round: 3 },
+  { at: 187, type: "zigzag",  count: 14,                            round: 3 },
+  { at: 192, type: "tank",    count: 3,                             round: 3 },
+  { at: 197, type: "swarm",   count: 36,                            round: 3 },
+  { at: 202, type: "grunt",   count: 20, pattern: "v-formation",   round: 3 },
+  { at: 210, type: "boss3",                                          round: 3 },
 ];
 
 // ─── score values ─────────────────────────────────────────────────────────────
 
 const SCORE_TABLE: Record<EnemyKind, number> = {
   grunt: 10, chaser: 15, diver: 20, gunner: 50, shooter: 100,
-  boss1: 5000, boss2: 10000,
+  zigzag: 25, tank: 300, swarm: 5,
+  boss1: 5000, boss2: 10000, boss3: 20000,
 };
 
 // ─── BootScene ────────────────────────────────────────────────────────────────
@@ -530,6 +573,131 @@ class BootScene extends Phaser.Scene {
         ct.refresh();
       }
     }
+
+    // ─── zigzag: teal spiked skimmer (36x28) — sine side-to-side ───
+    {
+      const W = 36, H = 28;
+      const ct = this.textures.createCanvas("enemy-zigzag", W, H);
+      if (ct) {
+        const ctx = ct.context;
+        // dark hull
+        ctx.fillStyle = "#003844";
+        ctx.beginPath();
+        ctx.moveTo(18, 28); ctx.lineTo(36, 12); ctx.lineTo(28, 0); ctx.lineTo(8, 0); ctx.lineTo(0, 12);
+        ctx.closePath(); ctx.fill();
+        // mid
+        ctx.fillStyle = "#00aabb";
+        ctx.beginPath();
+        ctx.moveTo(18, 24); ctx.lineTo(32, 12); ctx.lineTo(26, 3); ctx.lineTo(10, 3); ctx.lineTo(4, 12);
+        ctx.closePath(); ctx.fill();
+        // highlight
+        ctx.fillStyle = "#88ffff";
+        ctx.beginPath();
+        ctx.moveTo(18, 18); ctx.lineTo(26, 12); ctx.lineTo(22, 6); ctx.lineTo(14, 6); ctx.lineTo(10, 12);
+        ctx.closePath(); ctx.fill();
+        // core
+        const eg = ctx.createRadialGradient(18, 13, 0, 18, 13, 5);
+        eg.addColorStop(0, "#ffffff");
+        eg.addColorStop(0.5, "#00ddff");
+        eg.addColorStop(1, "#002233");
+        ctx.fillStyle = eg;
+        ctx.beginPath(); ctx.arc(18, 13, 4, 0, Math.PI * 2); ctx.fill();
+        // side spikes
+        ctx.fillStyle = "#003844";
+        ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(-4, 10); ctx.lineTo(0, 16); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(W, 12); ctx.lineTo(W + 4, 10); ctx.lineTo(W, 16); ctx.closePath(); ctx.fill();
+        ct.refresh();
+      }
+    }
+
+    // ─── tank: heavy armored dreadnought (64x56) ───
+    {
+      const W = 64, H = 56;
+      const ct = this.textures.createCanvas("enemy-tank", W, H);
+      if (ct) {
+        const ctx = ct.context;
+        // thick outer plates
+        ctx.fillStyle = "#1a1200";
+        ctx.fillRect(4, 6, W - 8, H - 10);
+        // main hull
+        ctx.fillStyle = "#553a00";
+        ctx.fillRect(6, 8, W - 12, H - 14);
+        // armored ridge
+        ctx.fillStyle = "#886200";
+        ctx.fillRect(10, 12, W - 20, H - 22);
+        // riveted bands
+        ctx.fillStyle = "#221a00";
+        ctx.fillRect(10, 20, W - 20, 3);
+        ctx.fillRect(10, 32, W - 20, 3);
+        // rivet dots
+        ctx.fillStyle = "#000";
+        for (let rx = 14; rx < W - 12; rx += 8) {
+          ctx.beginPath(); ctx.arc(rx, 14, 1, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(rx, 40, 1, 0, Math.PI * 2); ctx.fill();
+        }
+        // side cannons
+        ctx.fillStyle = "#0a0800";
+        ctx.fillRect(0, 18, 8, 20);
+        ctx.fillRect(W - 8, 18, 8, 20);
+        ctx.fillStyle = "#332400";
+        ctx.fillRect(1, 19, 6, 18);
+        ctx.fillRect(W - 7, 19, 6, 18);
+        // barrels (down)
+        ctx.fillStyle = "#0f0a00";
+        ctx.fillRect(2, 36, 3, 10);
+        ctx.fillRect(W - 5, 36, 3, 10);
+        // muzzle glow
+        ctx.fillStyle = "#ffcc22";
+        ctx.fillRect(2, 45, 3, 2);
+        ctx.fillRect(W - 5, 45, 3, 2);
+        // central turret
+        const tg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 14);
+        tg.addColorStop(0, "#ffcc44");
+        tg.addColorStop(0.6, "#996600");
+        tg.addColorStop(1, "#1a0f00");
+        ctx.fillStyle = tg;
+        ctx.beginPath(); ctx.arc(W / 2, H / 2, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#2a1a00";
+        ctx.beginPath(); ctx.arc(W / 2, H / 2, 4, 0, Math.PI * 2); ctx.fill();
+        // main barrel
+        ctx.fillStyle = "#1a1000";
+        ctx.fillRect(W / 2 - 3, H / 2 + 8, 6, 12);
+        ctx.fillStyle = "#ffaa22";
+        ctx.fillRect(W / 2 - 2, H / 2 + 18, 4, 3);
+        // top antennae
+        ctx.strokeStyle = "#886200";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(14, 10); ctx.lineTo(10, 0);
+        ctx.moveTo(W - 14, 10); ctx.lineTo(W - 10, 0);
+        ctx.stroke();
+        ctx.fillStyle = "#ff2200";
+        ctx.beginPath(); ctx.arc(10, 1, 1.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(W - 10, 1, 1.4, 0, Math.PI * 2); ctx.fill();
+        ct.refresh();
+      }
+    }
+
+    // ─── swarm: tiny crimson insect (14x14) ───
+    {
+      const W = 14, H = 14;
+      const ct = this.textures.createCanvas("enemy-swarm", W, H);
+      if (ct) {
+        const ctx = ct.context;
+        ctx.fillStyle = "#330000";
+        ctx.beginPath(); ctx.arc(7, 7, 6, 0, Math.PI * 2); ctx.fill();
+        const g = ctx.createRadialGradient(7, 7, 0, 7, 7, 6);
+        g.addColorStop(0, "#ff6644");
+        g.addColorStop(0.6, "#aa2200");
+        g.addColorStop(1, "#330000");
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(7, 7, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffff22";
+        ctx.beginPath(); ctx.arc(6, 5, 1.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(9, 5, 1.2, 0, Math.PI * 2); ctx.fill();
+        ct.refresh();
+      }
+    }
   }
 
   private makeBoss1(): void {
@@ -604,6 +772,88 @@ class BootScene extends Phaser.Scene {
       ctx.fillRect(35, 8, 8, 8);
       ctx.fillRect(53, 8, 8, 8);
       ct2.refresh();
+    }
+
+    // boss3: 128×112 mega dreadnought — magenta/black
+    const ct3 = this.textures.createCanvas("boss3", 128, 112);
+    if (ct3) {
+      const ctx = ct3.context;
+      const W = 128, H = 112;
+      // outer hull (broad crescent)
+      ctx.fillStyle = "#1a0022";
+      ctx.beginPath();
+      ctx.moveTo(W / 2, H);
+      ctx.lineTo(W, 28);
+      ctx.lineTo(108, 4);
+      ctx.lineTo(20, 4);
+      ctx.lineTo(0, 28);
+      ctx.closePath(); ctx.fill();
+      // mid plate
+      ctx.fillStyle = "#550066";
+      ctx.beginPath();
+      ctx.moveTo(W / 2, H - 6);
+      ctx.lineTo(W - 8, 32);
+      ctx.lineTo(100, 10);
+      ctx.lineTo(28, 10);
+      ctx.lineTo(8, 32);
+      ctx.closePath(); ctx.fill();
+      // bright edge
+      ctx.fillStyle = "#aa22dd";
+      ctx.beginPath();
+      ctx.moveTo(W / 2, H - 14);
+      ctx.lineTo(W - 20, 38);
+      ctx.lineTo(92, 18);
+      ctx.lineTo(36, 18);
+      ctx.lineTo(20, 38);
+      ctx.closePath(); ctx.fill();
+      // three cores
+      [32, 64, 96].forEach((x, i) => {
+        const r = i === 1 ? 16 : 12;
+        const g = ctx.createRadialGradient(x, 50, 0, x, 50, r);
+        g.addColorStop(0, "#ffffff");
+        g.addColorStop(0.3, "#ff44ff");
+        g.addColorStop(0.7, "#660088");
+        g.addColorStop(1, "rgba(20,0,40,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, 50, r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#220033";
+        ctx.beginPath(); ctx.arc(x, 50, r * 0.4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ff88ff";
+        ctx.beginPath(); ctx.arc(x, 50, r * 0.25, 0, Math.PI * 2); ctx.fill();
+      });
+      // wing cannon pods (x4)
+      ctx.fillStyle = "#0a0015";
+      ctx.fillRect(0, 44, 14, 20);
+      ctx.fillRect(W - 14, 44, 14, 20);
+      ctx.fillRect(16, 70, 16, 18);
+      ctx.fillRect(W - 32, 70, 16, 18);
+      ctx.fillStyle = "#330044";
+      ctx.fillRect(1, 45, 12, 18);
+      ctx.fillRect(W - 13, 45, 12, 18);
+      ctx.fillRect(17, 71, 14, 16);
+      ctx.fillRect(W - 31, 71, 14, 16);
+      // barrel muzzles
+      ctx.fillStyle = "#ff44ff";
+      ctx.fillRect(4, 62, 6, 3);
+      ctx.fillRect(W - 10, 62, 6, 3);
+      ctx.fillRect(22, 86, 6, 3);
+      ctx.fillRect(W - 28, 86, 6, 3);
+      // panel seams
+      ctx.strokeStyle = "#220033";
+      ctx.lineWidth = 1;
+      for (let y = 22; y < 96; y += 10) {
+        ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(W - 30, y); ctx.stroke();
+      }
+      // antennae
+      ctx.strokeStyle = "#aa44cc";
+      ctx.beginPath();
+      ctx.moveTo(40, 4); ctx.lineTo(36, -6);
+      ctx.moveTo(W - 40, 4); ctx.lineTo(W - 36, -6);
+      ctx.stroke();
+      ctx.fillStyle = "#ff44ff";
+      ctx.beginPath(); ctx.arc(36, 0, 1.6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(W - 36, 0, 1.6, 0, Math.PI * 2); ctx.fill();
+      ct3.refresh();
     }
   }
 
@@ -853,6 +1103,7 @@ class PlayScene extends Phaser.Scene {
   private gameTime = 0;
   private noHitStreak = 0;
   private waveNumber = 1;
+  private currentRound = 1;
   private dead = false;
   private loopPass = 0;
 
@@ -1009,6 +1260,17 @@ class PlayScene extends Phaser.Scene {
     // init HUD
     this.syncHUD();
 
+    // opening banner
+    const r1 = ROUNDS[0]!;
+    this.time.delayedCall(200, () => {
+      this.registry.set("round-banner", JSON.stringify({
+        text: `R1 · ${r1.name}`,
+        sub: "survive to boss",
+        color: r1.color,
+        ts: Date.now(),
+      }));
+    });
+
     // scale listener for resize
     this.scale.on("resize", (gameSize: Phaser.Structs.Size) => {
       this.onResize(gameSize.width, gameSize.height);
@@ -1133,11 +1395,7 @@ class PlayScene extends Phaser.Scene {
       this.updateBoss(dt);
     }
 
-    // score streak bonus
-    const streakBonus = Math.floor(this.noHitStreak / 10);
-    if (streakBonus > 0 && Math.floor(this.gameTime * 10) % 10 === 0) {
-      this.addScore(1);
-    }
+    // (no streak auto-score — score comes only from kills/pickups)
 
     // sync HUD every 200ms approx
     if (Math.floor(this.gameTime * 5) !== Math.floor((this.gameTime - dt / 1000) * 5)) {
@@ -1388,6 +1646,40 @@ class PlayScene extends Phaser.Scene {
           }
           break;
         }
+        case "zigzag": {
+          const body = e.body as Phaser.Physics.Arcade.Body;
+          const baseX = e.getData("baseX") as number;
+          const phase = (e.getData("phase") as number) + dt / 150;
+          e.setData("phase", phase);
+          const target = baseX + Math.sin(phase) * 70;
+          body.setVelocityX((target - e.x) * 4);
+          if (shootCd <= 0) {
+            e.setData("shootCd", 1800);
+            aimed(e.x, e.y + 10, px, this.playerShip.y, 1, 0, 220, "bullet-enemy-red", this.enemyBullets);
+          }
+          break;
+        }
+        case "tank": {
+          const body = e.body as Phaser.Physics.Arcade.Body;
+          body.setVelocityX(0);
+          if (shootCd <= 0) {
+            e.setData("shootCd", 1400);
+            // side cannons spread
+            aimed(e.x - 26, e.y + 18, px, this.playerShip.y, 2, 24, 190, "bullet-enemy-red", this.enemyBullets);
+            aimed(e.x + 26, e.y + 18, px, this.playerShip.y, 2, 24, 190, "bullet-enemy-red", this.enemyBullets);
+            // central turret single
+            aimed(e.x, e.y + 22, px, this.playerShip.y, 1, 0, 230, "bullet-enemy-pink", this.enemyBullets);
+          }
+          break;
+        }
+        case "swarm": {
+          // drift slightly sideways for cluster feel
+          const body = e.body as Phaser.Physics.Arcade.Body;
+          const phase = (e.getData("phase") as number) + dt / 200;
+          e.setData("phase", phase);
+          body.setVelocityX(Math.sin(phase) * 60);
+          break;
+        }
         case "shooter": {
           const body = e.body as Phaser.Physics.Arcade.Body;
           body.setVelocityY(0);
@@ -1446,7 +1738,10 @@ class PlayScene extends Phaser.Scene {
     const boss = this.bossRef;
     const W = this.scale.width;
     const px = this.playerShip.x;
-    const bossKey = boss.getData("kind") as "boss1" | "boss2";
+    const bossKey = boss.getData("kind") as BossKind;
+    const isB2 = bossKey === "boss2";
+    const isB3 = bossKey === "boss3";
+    const difficulty = isB3 ? 1.5 : isB2 ? 1.15 : 1;
 
     this.bossPhaseTimer -= dt;
 
@@ -1454,15 +1749,14 @@ class PlayScene extends Phaser.Scene {
       case 0: {
         // phase 1: aimed spread
         if (this.bossPhaseTimer <= 0) {
-          this.bossPhaseTimer = 1400;
-          aimed(boss.x, boss.y + 10, px, this.playerShip.y, 3, 18, 200, "bullet-enemy-red", this.enemyBullets);
+          this.bossPhaseTimer = isB3 ? 900 : 1400;
+          const spreadCount = isB3 ? 5 : 3;
+          aimed(boss.x, boss.y + 10, px, this.playerShip.y, spreadCount, 18, 200 * difficulty, "bullet-enemy-red", this.enemyBullets);
         }
-        // slow horizontal oscillation
         const body = boss.body as Phaser.Physics.Arcade.Body;
         body.setVelocityX(Math.sin(this.gameTime * 1.2) * 80);
         body.setVelocityY(0);
-        // switch phase at 60% HP
-        if (this.bossHP < this.bossMaxHP * 0.6) {
+        if (this.bossHP < this.bossMaxHP * 0.66) {
           this.bossPhase = 1;
           this.bossPhaseTimer = 0;
           this.bossSpiralAngle = 0;
@@ -1471,15 +1765,15 @@ class PlayScene extends Phaser.Scene {
       }
       case 1: {
         // phase 2: spiral
-        this.bossSpiralAngle += (2.5 * Math.PI * dt) / 1000;
+        this.bossSpiralAngle += ((isB3 ? 3.4 : 2.5) * Math.PI * dt) / 1000;
         if (this.bossPhaseTimer <= 0) {
-          this.bossPhaseTimer = 80;
+          this.bossPhaseTimer = isB3 ? 55 : 80;
           const b = this.enemyBullets.get(boss.x, boss.y, "bullet-enemy-pink") as Phaser.Physics.Arcade.Image | null;
           if (b) {
             b.setActive(true).setVisible(true).setDepth(3);
             const body2 = b.body as Phaser.Physics.Arcade.Body;
             body2.reset(boss.x, boss.y);
-            const spd = bossKey === "boss2" ? 220 : 180;
+            const spd = isB3 ? 240 : isB2 ? 220 : 180;
             body2.setVelocity(Math.cos(this.bossSpiralAngle) * spd, Math.sin(this.bossSpiralAngle) * spd);
             body2.setAllowGravity(false);
           }
@@ -1487,21 +1781,20 @@ class PlayScene extends Phaser.Scene {
         const body = boss.body as Phaser.Physics.Arcade.Body;
         body.setVelocityX(Math.sin(this.gameTime * 0.8) * 60);
         body.setVelocityY(Math.cos(this.gameTime * 0.6) * 30);
-        // switch phase at 30% HP
-        if (this.bossHP < this.bossMaxHP * 0.3) {
+        if (this.bossHP < this.bossMaxHP * 0.33) {
           this.bossPhase = 2;
-          this.bossPhaseTimer = 2500;
+          this.bossPhaseTimer = isB3 ? 1500 : 2500;
         }
         break;
       }
       case 2: {
-        // phase 3: wall curtain with gap
+        // phase 3: wall curtain + aimed
         if (this.bossPhaseTimer <= 0) {
-          this.bossPhaseTimer = bossKey === "boss2" ? 1800 : 2500;
+          this.bossPhaseTimer = isB3 ? 1300 : isB2 ? 1800 : 2500;
           const gapCenter = px;
-          wall(boss.y + 20, 16, gapCenter, 80, 220, "bullet-enemy-red", this.enemyBullets, W);
-          // also aimed
-          aimed(boss.x, boss.y + 10, px, this.playerShip.y, 3, 25, 180, "bullet-enemy-pink", this.enemyBullets);
+          wall(boss.y + 20, isB3 ? 14 : 16, gapCenter, 70, 240 * difficulty, "bullet-enemy-red", this.enemyBullets, W);
+          aimed(boss.x, boss.y + 10, px, this.playerShip.y, isB3 ? 5 : 3, 25, 180 * difficulty, "bullet-enemy-pink", this.enemyBullets);
+          if (isB3) radial(boss.x, boss.y, 16, 200, "bullet-enemy-pink", this.enemyBullets);
         }
         const body = boss.body as Phaser.Physics.Arcade.Body;
         body.setVelocityX(Math.sin(this.gameTime * 1.5) * 100);
@@ -1510,10 +1803,10 @@ class PlayScene extends Phaser.Scene {
       }
     }
 
-    // boss2 gets an extra radial in phase 1
-    if (bossKey === "boss2" && this.bossPhase === 0) {
+    // boss2/3 periodic radial burst in phase 0
+    if ((isB2 || isB3) && this.bossPhase === 0) {
       if (this.bossPhaseTimer > 0 && this.bossPhaseTimer % 3000 < 50) {
-        radial(boss.x, boss.y, 12, 160, "bullet-enemy-pink", this.enemyBullets);
+        radial(boss.x, boss.y, isB3 ? 16 : 12, 160, "bullet-enemy-pink", this.enemyBullets);
       }
     }
 
@@ -1537,17 +1830,22 @@ class PlayScene extends Phaser.Scene {
 
     while (this.waveIndex < timeline.length && timeline[this.waveIndex]!.at <= t) {
       const ev = timeline[this.waveIndex]!;
+      if (ev.round && ev.round !== this.currentRound) {
+        this.currentRound = ev.round;
+      }
       this.spawnWave(ev);
       this.waveIndex++;
       this.waveNumber++;
       this.syncHUD();
     }
 
-    // loop after 180s
-    if (this.waveIndex >= timeline.length && !this.bossAlive) {
+    // loop after last wave: restart rounds (higher difficulty via loopPass)
+    if (this.waveIndex >= timeline.length && !this.bossAlive && this.enemyGroup.countActive() === 0) {
       this.gameTime = 0;
       this.waveIndex = 0;
+      this.currentRound = 1;
       this.loopPass++;
+      this.syncHUD();
     }
   }
 
@@ -1557,7 +1855,7 @@ class PlayScene extends Phaser.Scene {
     const hpMult = 1 + this.loopPass * 0.2;
     const spdMult = 1 + this.loopPass * 0.15;
 
-    if (ev.type === "boss1" || ev.type === "boss2") {
+    if (ev.type === "boss1" || ev.type === "boss2" || ev.type === "boss3") {
       this.spawnBoss(ev.type, hpMult);
       playSfx("go");
       setTimeout(() => playSfx("score"), 200);
@@ -1571,9 +1869,19 @@ class PlayScene extends Phaser.Scene {
       diver:   { hp: 4,  speed: 100 * spdMult, shootCd: 2500 },
       gunner:  { hp: 8,  speed: 0,              shootCd: 1200 },
       shooter: { hp: 15, speed: 0,              shootCd: 2000 },
+      zigzag:  { hp: 3,  speed: 110 * spdMult, shootCd: 1800 },
+      tank:    { hp: 35, speed: 40  * spdMult, shootCd: 1400 },
+      swarm:   { hp: 1,  speed: 180 * spdMult, shootCd: 9999 },
     };
     const cfg = configs[ev.type];
     if (!cfg) return;
+
+    const textureFor: Record<string, string> = {
+      grunt: "enemy-grunt", chaser: "enemy-chaser", diver: "enemy-diver",
+      gunner: "enemy-gunner", shooter: "enemy-shooter",
+      zigzag: "enemy-zigzag", tank: "enemy-tank", swarm: "enemy-swarm",
+    };
+    const texKey = textureFor[ev.type] ?? "enemy-grunt";
 
     for (let i = 0; i < count; i++) {
       const x = ev.pattern === "v-formation"
@@ -1581,12 +1889,7 @@ class PlayScene extends Phaser.Scene {
         : 30 + Math.random() * (W - 60);
       const y = -30 - i * 15;
 
-      const e = this.enemyGroup.get(x, y, ev.type === "gunner" ? "enemy-gunner"
-        : ev.type === "shooter" ? "enemy-shooter"
-        : ev.type === "diver" ? "enemy-diver"
-        : ev.type === "chaser" ? "enemy-chaser"
-        : "enemy-grunt") as Phaser.Physics.Arcade.Image | null;
-
+      const e = this.enemyGroup.get(x, y, texKey) as Phaser.Physics.Arcade.Image | null;
       if (!e) continue;
       e.setActive(true).setVisible(true).setDepth(7);
       e.setData("kind", ev.type);
@@ -1594,21 +1897,25 @@ class PlayScene extends Phaser.Scene {
       e.setData("maxHp", Math.ceil(cfg.hp * hpMult));
       e.setData("shootCd", cfg.shootCd + Math.random() * 500);
       e.setData("spiralAngle", Math.random() * Math.PI * 2);
+      e.setData("baseX", x);
+      e.setData("phase", Math.random() * Math.PI * 2);
       const body = e.body as Phaser.Physics.Arcade.Body;
       body.reset(x, y);
       body.setAllowGravity(false);
       if (ev.type === "diver") {
         const dir = i % 2 === 0 ? 1 : -1;
         body.setVelocity(dir * 60 * spdMult, cfg.speed);
+      } else if (ev.type === "zigzag") {
+        body.setVelocity(0, cfg.speed);
       } else {
         body.setVelocity(0, cfg.speed);
       }
     }
   }
 
-  private spawnBoss(kind: "boss1" | "boss2", hpMult: number): void {
+  private spawnBoss(kind: BossKind, hpMult: number): void {
     const W = this.scale.width;
-    const baseHP = kind === "boss1" ? 500 : 1200;
+    const baseHP = kind === "boss1" ? 500 : kind === "boss2" ? 1200 : 2400;
     const hp = Math.ceil(baseHP * hpMult);
 
     const boss = this.enemyGroup.get(W / 2, -60, kind) as Phaser.Physics.Arcade.Image | null;
@@ -1736,6 +2043,38 @@ class PlayScene extends Phaser.Scene {
       this.dropPickup(this.scale.width / 2 - 20, 200);
       this.dropPickup(this.scale.width / 2 + 20, 200);
       this.addBomb();
+
+      // round cleared — grant weapon reward + banner
+      this.onRoundCleared(kind);
+    }
+  }
+
+  private onRoundCleared(bossKind: EnemyKind): void {
+    const roundIdx = bossKind === "boss1" ? 0 : bossKind === "boss2" ? 1 : bossKind === "boss3" ? 2 : -1;
+    if (roundIdx < 0) return;
+    const round = ROUNDS[roundIdx]!;
+    // grant weapon: if already owns, bump level; else swap with level 2
+    if (this.weaponType === round.reward) {
+      this.weaponLevel = Math.min(5, this.weaponLevel + 1) as WeaponLevel;
+    } else {
+      this.weaponType = round.reward;
+      this.weaponLevel = 2;
+    }
+    this.playerLives = Math.min(5, this.playerLives + 1);
+    this.syncHUD();
+    this.registry.set("round-banner", JSON.stringify({
+      text: `${round.name} CLEAR`,
+      sub: `+ ${round.rewardLabel}`,
+      color: round.color,
+      ts: Date.now(),
+    }));
+    if (roundIdx === ROUNDS.length - 1) {
+      this.registry.set("round-banner", JSON.stringify({
+        text: "VICTORY",
+        sub: "NEW LOOP +difficulty",
+        color: "#ffee44",
+        ts: Date.now(),
+      }));
     }
   }
 
@@ -1781,6 +2120,8 @@ class PlayScene extends Phaser.Scene {
     this.registry.set("lives", this.playerLives);
     this.registry.set("bombs", this.playerBombs);
     this.registry.set("wave", this.waveNumber);
+    this.registry.set("round", this.currentRound);
+    this.registry.set("weapon", `${this.weaponType.toUpperCase()} L${this.weaponLevel}`);
   }
 
   private spawnExplosion(x: number, y: number, big = false): void {
@@ -1823,12 +2164,18 @@ class PlayScene extends Phaser.Scene {
 class UIScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
   private waveText!: Phaser.GameObjects.Text;
+  private roundText!: Phaser.GameObjects.Text;
   private livesText!: Phaser.GameObjects.Text;
   private bombsText!: Phaser.GameObjects.Text;
+  private weaponText!: Phaser.GameObjects.Text;
   private bombBtn!: Phaser.GameObjects.Rectangle;
   private bombBtnLabel!: Phaser.GameObjects.Text;
   private bossBar!: Phaser.GameObjects.Graphics;
   private gameoverOverlay!: Phaser.GameObjects.Container;
+  private banner!: Phaser.GameObjects.Container;
+  private bannerMainText!: Phaser.GameObjects.Text;
+  private bannerSubText!: Phaser.GameObjects.Text;
+  private bannerTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor() { super({ key: "UI", active: false }); }
 
@@ -1840,9 +2187,13 @@ class UIScene extends Phaser.Scene {
       fontFamily: "monospace", fontSize: "20px", color: "#ffffff",
     }).setDepth(50);
 
-    // wave
-    this.waveText = this.add.text(W / 2, 8, "WAVE 1", {
-      fontFamily: "monospace", fontSize: "13px", color: "#aaddff",
+    // round name
+    this.roundText = this.add.text(W / 2, 8, "ROUND 1", {
+      fontFamily: "monospace", fontSize: "13px", color: "#88ddff", fontStyle: "bold",
+    }).setOrigin(0.5, 0).setDepth(50);
+    // wave sub-counter
+    this.waveText = this.add.text(W / 2, 24, "WAVE 1", {
+      fontFamily: "monospace", fontSize: "10px", color: "#aaaaaa",
     }).setOrigin(0.5, 0).setDepth(50);
 
     // lives
@@ -1854,6 +2205,11 @@ class UIScene extends Phaser.Scene {
     this.bombsText = this.add.text(W - 8, 28, "💣💣💣", {
       fontFamily: "monospace", fontSize: "12px", color: "#ffcc00",
     }).setOrigin(1, 0).setDepth(50);
+
+    // weapon badge (left)
+    this.weaponText = this.add.text(8, 32, "BASIC L1", {
+      fontFamily: "monospace", fontSize: "10px", color: "#88ff88",
+    }).setDepth(50);
 
     // BOMB button bottom-right
     const H = this.scale.height;
@@ -1873,6 +2229,18 @@ class UIScene extends Phaser.Scene {
     // boss health bar
     this.bossBar = this.add.graphics().setDepth(52);
 
+    // round-cleared banner
+    this.banner = this.add.container(W / 2, H * 0.35).setDepth(58).setVisible(false);
+    const bnBg = this.add.rectangle(0, 0, Math.min(W - 40, 340), 110, 0x000000, 0.75);
+    bnBg.setStrokeStyle(2, 0xffffff, 0.7);
+    this.bannerMainText = this.add.text(0, -18, "", {
+      fontFamily: "monospace", fontSize: "22px", color: "#ffffff", fontStyle: "bold",
+    }).setOrigin(0.5);
+    this.bannerSubText = this.add.text(0, 22, "", {
+      fontFamily: "monospace", fontSize: "12px", color: "#aaffcc",
+    }).setOrigin(0.5);
+    this.banner.add([bnBg, this.bannerMainText, this.bannerSubText]);
+
     // game over overlay (initially hidden)
     this.gameoverOverlay = this.add.container(W / 2, H / 2).setDepth(60).setVisible(false);
     const goBg = this.add.rectangle(0, 0, 280, 180, 0x000000, 0.85);
@@ -1889,6 +2257,8 @@ class UIScene extends Phaser.Scene {
       this.registry.set("lives", 3);
       this.registry.set("bombs", 3);
       this.registry.set("wave", 1);
+      this.registry.set("round", 1);
+      this.registry.set("weapon", "BASIC L1");
       this.registry.set("boss-hp", 0);
       this.registry.set("boss-max-hp", 0);
       this.gameoverOverlay.setVisible(false);
@@ -1913,6 +2283,19 @@ class UIScene extends Phaser.Scene {
       case "wave":
         this.waveText.setText(`WAVE ${value as number}`);
         break;
+      case "round": {
+        const n = value as number;
+        const name = ROUNDS[n - 1]?.name ?? "FINAL";
+        const color = ROUNDS[n - 1]?.color ?? "#ffcc00";
+        this.roundText.setText(`R${n} · ${name}`);
+        this.roundText.setColor(color);
+        break;
+      }
+      case "weapon": {
+        const w = value as string;
+        this.weaponText.setText(w);
+        break;
+      }
       case "lives": {
         const n = value as number;
         this.livesText.setText("♥".repeat(Math.max(0, n)));
@@ -1928,6 +2311,25 @@ class UIScene extends Phaser.Scene {
       case "boss-max-hp":
         this.drawBossBar();
         break;
+      case "round-banner": {
+        try {
+          const d = JSON.parse(value as string) as { text: string; sub: string; color: string };
+          this.bannerMainText.setText(d.text).setColor(d.color);
+          this.bannerSubText.setText(d.sub);
+          this.banner.setVisible(true).setAlpha(0);
+          this.tweens.add({ targets: this.banner, alpha: 1, duration: 250 });
+          if (this.bannerTimer) this.bannerTimer.remove();
+          this.bannerTimer = this.time.delayedCall(2600, () => {
+            this.tweens.add({
+              targets: this.banner,
+              alpha: 0,
+              duration: 400,
+              onComplete: () => this.banner.setVisible(false),
+            });
+          });
+        } catch {}
+        break;
+      }
       case "gameover":
         if (value === true) {
           const sc = this.registry.get("score") as number;
@@ -1958,12 +2360,14 @@ class UIScene extends Phaser.Scene {
   }
 
   private onResize(W: number, H: number): void {
+    this.roundText.setX(W / 2);
     this.waveText.setX(W / 2);
     this.livesText.setX(W - 8);
     this.bombsText.setX(W - 8);
     this.bombBtn.setPosition(W - 40, H - 50);
     this.bombBtnLabel.setPosition(W - 40, H - 50);
     this.gameoverOverlay.setPosition(W / 2, H / 2);
+    this.banner.setPosition(W / 2, H * 0.35);
   }
 }
 
