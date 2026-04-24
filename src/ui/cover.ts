@@ -971,6 +971,7 @@ function artBody(entry: GameEntry): string {
       case "surv-swarm": return survSwarmArt(id);
       case "color-flow": return colorFlowArt(id);
       case "block-fit": return blockFitArt(id);
+      case "star-void": return starVoidArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1647,6 +1648,84 @@ function chainReactionArt(id: string): string {
   }).join("\n  ");
 
   return cells.join("\n  ") + "\n  " + arrows + "\n  " + particles;
+}
+
+function starVoidArt(id: string): string {
+  // starfield dots
+  const stars = [
+    [14,8],[38,4],[62,12],[95,6],[120,3],[145,9],[22,22],[55,18],[80,28],[110,14],[140,20],
+    [8,35],[44,32],[75,40],[105,36],[138,30],[18,52],[50,48],[88,55],[125,44],[155,50],
+    [30,68],[68,64],[100,72],[142,60],[12,80],[58,76],[92,85],[130,78],[150,70],
+  ].map(([x, y], i) => {
+    const r = i % 5 === 0 ? 1.5 : 1;
+    const op = 0.4 + (i % 3) * 0.2;
+    return `<circle cx="${x}" cy="${y}" r="${r}" fill="#ffffff" fill-opacity="${op}"/>`;
+  }).join("\n  ");
+
+  // nebula blobs
+  const nebulae = [
+    `<ellipse cx="35" cy="35" rx="28" ry="18" fill="#4400aa" fill-opacity="0.18"/>`,
+    `<ellipse cx="125" cy="55" rx="22" ry="14" fill="#220066" fill-opacity="0.22"/>`,
+  ].join("\n  ");
+
+  // 3 enemies top area
+  // grunt (triangle, red)
+  const g1 = `<g filter="url(#glow-${id})">
+    <polygon points="28,10 35,24 21,24" fill="#ff2200"/>
+    <polygon points="28,12 34,22 22,22" fill="#ff6600"/>
+    <rect x="25" y="17" width="6" height="3" fill="#ffff00"/>
+  </g>`;
+  // chaser (diamond, purple)
+  const g2 = `<g filter="url(#glow-${id})">
+    <polygon points="80,8 90,17 80,26 70,17" fill="#aa00ff"/>
+    <circle cx="80" cy="17" r="4" fill="#dd66ff"/>
+  </g>`;
+  // gunner (box, green)
+  const g3 = `<g filter="url(#glow-${id})">
+    <rect x="118" y="8" width="22" height="18" rx="1" fill="#226600"/>
+    <rect x="120" y="10" width="18" height="14" rx="1" fill="#44aa00"/>
+    <rect x="115" y="12" width="4" height="8" fill="#226600"/>
+    <rect x="140" y="12" width="4" height="8" fill="#226600"/>
+    <rect x="129" y="5" width="4" height="4" fill="#88ff00"/>
+  </g>`;
+
+  // bullet curtain — 20+ small bullets scattered mid-field
+  const bulletCols = ["#ff2200","#ff88aa","#ff4400","#ff2200","#ffaa00","#ff88aa"];
+  const bulletRows = [
+    [15, 28, 42, 55, 68, 82, 95, 108, 122, 136, 148],
+    [20, 38, 52, 65, 78, 90, 104, 118, 132, 145],
+  ];
+  const bullets = bulletRows.flatMap((xs, row) =>
+    xs.map((x, i) => {
+      const y = 36 + row * 14 + (i % 3) * 3;
+      const col = bulletCols[(i + row * 3) % bulletCols.length]!;
+      return `<circle cx="${x}" cy="${y}" r="2.5" fill="${col}" filter="url(#glow-${id})" fill-opacity="0.9"/>`;
+    })
+  ).join("\n  ");
+
+  // player ship — bottom center
+  const ship = `<g filter="url(#glow2-${id})">
+    <polygon points="80,88 92,100 80,96 68,100" fill="#0055aa"/>
+    <polygon points="80,89 90,99 80,95 70,99" fill="#00ccff"/>
+    <circle cx="80" cy="92" r="4" fill="#ffffff"/>
+    <rect x="62" y="100" width="6" height="4" fill="#0055aa"/>
+    <rect x="92" y="100" width="6" height="4" fill="#0055aa"/>
+    <rect x="77" y="100" width="6" height="3" fill="#ffcc00" filter="url(#glow-${id})"/>
+  </g>`;
+
+  // engine trail
+  const trail = [
+    `<ellipse cx="80" cy="103" rx="3" ry="5" fill="#ffaa00" fill-opacity="0.7" filter="url(#glow-${id})"/>`,
+    `<ellipse cx="80" cy="107" rx="2" ry="4" fill="#ff6600" fill-opacity="0.5"/>`,
+  ].join("\n  ");
+
+  // player bullets (shooting up)
+  const pBullets = [
+    `<rect x="78" y="72" width="4" height="10" rx="1" fill="#88ffff" filter="url(#glow-${id})"/>`,
+    `<rect x="78" y="60" width="4" height="8" rx="1" fill="#88ffff" fill-opacity="0.5"/>`,
+  ].join("\n  ");
+
+  return nebulae + "\n  " + stars + "\n  " + g1 + "\n  " + g2 + "\n  " + g3 + "\n  " + bullets + "\n  " + trail + "\n  " + ship + "\n  " + pBullets;
 }
 
 function defaultArt(id: string, accent: string): string {

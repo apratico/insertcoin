@@ -200,6 +200,16 @@ export const GAMES: GameEntry[] = [
     status: "ready",
     load: () => import("./block-fit/index.js"),
   },
+  {
+    id: "star-void",
+    title: "Star Void",
+    tagline: "Vertical shmup. Dodge. Blast.",
+    palette: { bg: "#060318", fg: "#ffffff", accent: "#ff3366" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    load: () => import("./star-void/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

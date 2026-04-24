@@ -307,6 +307,25 @@ const INSTRUCTIONS: Record<string, GameInstructions> = {
       "Game over when none of the 3 current shapes fits.",
     ],
   },
+  "star-void": {
+    title: "Star Void",
+    it: [
+      "Trascina il dito per muovere la navetta.",
+      "Fuoco automatico continuo.",
+      "Power-up: W (wide), L (laser), S (spread), H (homing), +1 bomba.",
+      "Pulsante BOMB in basso a destra: nuke tutti proiettili + danno ai nemici.",
+      "3 vite. Ogni 90s arriva un boss.",
+      "Hitbox piccola: solo il centro della navetta conta.",
+    ],
+    en: [
+      "Drag your finger to move the ship.",
+      "Auto-fire continuous.",
+      "Power-ups: W wide, L laser, S spread, H homing, +1 bomb.",
+      "BOMB button bottom-right: nuke all bullets + damage enemies.",
+      "3 lives. Boss every 90s.",
+      "Tiny hitbox: only the ship core counts.",
+    ],
+  },
   "tris": {
     title: "Tris (Tic-Tac-Toe)",
     it: [

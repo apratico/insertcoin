@@ -36,6 +36,173 @@ Optional / per-game picks you should recognize:
 
 Decision rule: **start with plain Canvas 2D + TS**. Upgrade to PixiJS when you see >200 draw calls per frame or particle systems. Reach for Phaser only when scene/physics/input glue would cost more to write than the 1MB import.
 
+# Phaser 3 — deep-dive for InsertCoin
+
+Use Phaser 3 for high-sprite-count arcade where Canvas 2D would choke: vertical/horizontal shmups (bullet hell 500+ bullets), platformers with 50+ on-screen entities, particle-heavy action, tilemap-based scrollers. Installed as `phaser` npm dependency (v3.x). Bundle ~700KB gzipped; acceptable because lazy-loaded per game.
+
+## Integration with insertcoin shell
+
+Each Phaser game is a standalone module at `src/games/<id>/index.ts` exporting the same `{ mount, cleanup }` contract as Canvas 2D games. **Do not** write at the shell level — the shell is framework-agnostic.
+
+Skeleton:
+
+```ts
+import Phaser from "phaser";
+import { submit, personalBest } from "../../lib/leaderboard.js";
+import { playSfx } from "../../lib/audio.js";
+
+export function mount(container: HTMLElement): () => void {
+  container.classList.add("<id>-root");
+  const prevTouch = container.style.touchAction;
+  container.style.touchAction = "none";
+
+  // Phaser needs an empty div to attach to — use the container directly.
+  const config: Phaser.Types.Core.GameConfig = {
+    type: Phaser.AUTO,                    // WebGL with Canvas fallback
+    parent: container,                    // Phaser injects its own <canvas>
+    scale: {
+      mode: Phaser.Scale.RESIZE,          // fills parent, respects resize
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: "100%",
+      height: "100%",
+    },
+    backgroundColor: "#0a0018",
+    physics: { default: "arcade", arcade: { gravity: { x: 0, y: 0 }, debug: false } },
+    scene: [BootScene, PlayScene, UIScene],
+    input: { activePointers: 3 },         // allow multi-touch if needed
+    audio: { disableWebAudio: true },     // we use our own lib/audio.ts
+    fps: { target: 60, forceSetTimeOut: false },
+    render: {
+      antialias: false,                   // crisp pixels on mobile
+      pixelArt: true,                     // prevent blurry scaling
+      powerPreference: "high-performance",
+    },
+    banner: false,                        // no console spam
+  };
+
+  const game = new Phaser.Game(config);
+
+  return function cleanup(): void {
+    game.destroy(true, false);            // destroy Phaser, remove canvas
+    container.classList.remove("<id>-root");
+    container.style.touchAction = prevTouch;
+  };
+}
+```
+
+Mount contract compliance remains the same as Canvas 2D games: `classList.add`, `flex:1 min-height:0` root, `touchAction:none`, fullscreen via `container.closest(".game-host").requestFullscreen()`, cleanup removes all listeners.
+
+## Scene pattern
+
+Split into small scenes:
+- **BootScene** — preload all assets (sprites, audio), show a tiny loader bar, then `scene.start("Play")`.
+- **PlayScene** — game loop (update/render). Don't mix UI here.
+- **UIScene** — scoreboard, pause overlay, rank card, gameover. Launched in parallel via `scene.launch("UI")`.
+
+Scenes communicate via `this.scene.get("Play").events.emit("score-change", value)` or a shared `game.registry`.
+
+## Sprite batching
+
+Phaser auto-batches same-texture draw calls. Keep to one or two texture atlases per game (via TexturePacker CLI or hand-crafted `Phaser.Textures.CanvasTexture`). For 1000 bullets at 60fps:
+
+- Use `Phaser.GameObjects.Group` with `runChildUpdate: false` for pooling.
+- Reuse bullet instances: `setActive(true)` / `setVisible(true)` / `setActive(false)`.
+- Never `destroy()` in hot paths — reset and reuse.
+- Physics: use `arcade` (fast AABB/circle, built-in), NOT matter (heavyweight).
+- Disable physics debug in production.
+
+## Particle effects
+
+`this.add.particles(x, y, "texture", { ... })` is VERY fast (WebGL batch). For explosions use `emitter.explode(count)`. Set `emitting: false` by default; trigger `emitter.explode()` on kill.
+
+## Input on mobile
+
+`this.input.on("pointerdown"/"pointermove"/"pointerup", handler)`. Store `pointer.isDown` state. Don't attach keyboard listeners on mobile paths — but keyboard still fine as desktop fallback via `this.input.keyboard.createCursorKeys()`.
+
+Drag-to-move: in `update()` read `this.input.activePointer.x/y` and lerp player toward it when isDown.
+
+## Asset pipeline (no external tools)
+
+For fast MVP, generate sprites procedurally into a `Phaser.Textures.CanvasTexture` at BootScene — no PNG files needed:
+
+```ts
+const tex = this.textures.createCanvas("bullet", 8, 12);
+const c = tex.getContext();
+c.fillStyle = "#ff3366";
+c.fillRect(2, 0, 4, 12);
+// ...draw your pixel sprite here
+tex.refresh();
+```
+
+This keeps bundle small (no images) and avoids build-tool complexity. Fine for pixel-art MVP.
+
+For real production: PNG in `src/games/<id>/assets/`, loaded in BootScene with `this.load.image("key", "url")`. Vite bundles them via static imports.
+
+## Audio
+
+**Do not** use Phaser's audio system. Use the existing `src/lib/audio.ts` (`playSfx`). Phaser config sets `audio: { disableWebAudio: true }` to prevent Phaser from grabbing the AudioContext.
+
+## Performance checklist (must hit on 2019 mid-range Android)
+
+- 60 fps with 300+ active sprites
+- Group-pool all bullets, enemies, particles
+- No `console.log` in hot paths
+- No `string.concat` per frame in `update()` — precompute
+- `physics.world.setFPS(60)` explicit
+- Disable `renderer.pipelines.PostFXPipeline` unless specifically needed (expensive post-processing)
+- Use `this.cameras.main.setBackgroundColor` instead of drawing a background rect every frame
+
+## Common mistakes to avoid
+
+- **Creating new objects every frame** — always pool.
+- **Using `setInterval`** — use `this.time.addEvent({ delay, loop: true, callback })` so pause works correctly.
+- **Listening to DOM events directly** — use Phaser's input system so Scale/Pointer respects the canvas.
+- **Forgetting `game.destroy(true, false)`** in cleanup — leaks WebGL context.
+- **Preloading at PlayScene** — put preload in BootScene; PlayScene assumes assets ready.
+- **Texture size > 2048px on one side** — mobile GPUs may reject. Split into atlases.
+
+# WASM / engine alternatives (know these exist, pick by game)
+
+Only reach for these when Phaser isn't enough or when the user explicitly requests:
+
+- **Rust + macroquad → WASM** (wasm-bindgen + wasm-pack) — lean 500KB-1MB bundle, near-native perf, for physics-heavy or CPU-bound 2D. Integrates as `load: () => import("./<id>/pkg/loader.js")` in registry. Requires rustup + wasm32-unknown-unknown target + wasm-pack.
+- **Rust + Bevy** — ECS game engine, 3-6MB gzipped. Use only for ambitious multi-game projects where structure + ECS pays off.
+- **Godot 4 HTML5 export** — editor-first workflow, 20-30MB runtime cached once. Use when visual editor matters more than bundle. Embed via iframe.
+- **Unity WebGL** — avoid unless porting an existing Unity title. 15-50MB.
+- **Emscripten C/C++** — legacy ports only.
+
+Decision rule for new games in 2026:
+1. Pure puzzle / grid / tiny action → Canvas 2D + TS (current stack).
+2. Action with 50+ simultaneous sprites, bullet hell, platformer, shmup → **Phaser 3**.
+3. Physics sandbox, particle soup >2000 entities, CPU-bound simulation → Rust + macroquad/WASM.
+4. Editor-driven asset-heavy game → Godot 4 HTML5.
+
+# Vertical shmup genre — specifics
+
+Classic genre (Raiden, Dragon Blaze, Touhou, Cave shooters). Portrait-first. Phaser 3 is the natural fit.
+
+Must-haves:
+- Parallax starfield (2-3 layers, WebGL TileSprite or quad offset).
+- Player ship bottom third, full XY drag movement (clamp to arena bounds).
+- Auto-fire. Upgrade paths (spread / laser / beam / homing).
+- Enemy wave system driven by a timeline: data-driven list of spawn events at time offsets.
+- Bullet hell patterns: radial burst, spiral, aimed spread, wall-curtain. Compose from primitives.
+- Boss fights: multi-phase HP bar, pattern switching on HP thresholds.
+- Power-ups dropped from kills: W (weapon up), B (bomb stock), S (shield), E (extra life).
+- Bomb: tap dedicated button → nuke screen bullets + AOE damage + brief invulnerability.
+- Life system: 3 lives, respawn with brief invulnerability on death.
+- Score multiplier: no-hit streak bonus, chain kills.
+- Screen shake on boss hit, big explosion, player death.
+- Particle-heavy: explosions, muzzle flash, engine thrust.
+
+Common patterns for bullet hell:
+- `radial(n, speed)` — n bullets at equal angles around a center.
+- `aimed(target, spread, n)` — n bullets toward target with spread angle.
+- `spiral(n, period)` — continuous bullet emission rotating around origin.
+- `wall(count, gap)` — horizontal wall with a gap to dodge through.
+
+Target on mobile: 300-500 active bullets + 30 enemies + 200 particles at 60fps = well within Phaser 3's WebGL capabilities.
+
 # Mobile-first constraints — non-negotiable
 
 - Minimum target: 360×640 viewport, 60fps on a 2019 mid-range Android.
