@@ -971,6 +971,7 @@ function artBody(entry: GameEntry): string {
       case "color-flow": return colorFlowArt(id);
       case "block-fit": return blockFitArt(id);
       case "star-void": return starVoidArt(id);
+      case "drop-stack": return dropStackArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1632,6 +1633,42 @@ function starVoidArt(id: string): string {
 
 function defaultArt(id: string, accent: string): string {
   return `<rect x="20" y="20" width="120" height="60" rx="8" fill="${accent}" fill-opacity="0.3" filter="url(#glow-${id})"/>`;
+}
+
+function dropStackArt(id: string): string {
+  // Jar outline + stack of colored orbs + one dropping from top
+  const bg = `<rect width="160" height="100" fill="#0a1026"/>`;
+  const jar = `
+    <rect x="42" y="20" width="76" height="72" fill="rgba(120,160,255,0.05)" stroke="#1a2340" stroke-width="2"/>
+    <line x1="42" y1="20" x2="118" y2="20" stroke="#ff3344" stroke-dasharray="3,3" stroke-width="1"/>
+  `;
+  // orbs stacked inside jar
+  const orb = (cx: number, cy: number, r: number, color: string, shade: string, accent: string) => `
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="${shade}" stroke-width="0.8"/>
+    <ellipse cx="${cx - r * 0.35}" cy="${cy - r * 0.4}" rx="${r * 0.28}" ry="${r * 0.16}" fill="rgba(255,255,255,0.5)" transform="rotate(-30 ${cx - r * 0.35} ${cy - r * 0.4})"/>
+    <circle cx="${cx}" cy="${cy + r * 0.35}" r="${r * 0.12}" fill="${accent}"/>
+  `;
+  const stack = [
+    orb(58, 84, 6,  "#ff5177", "#a8123b", "#ffccdc"),
+    orb(70, 84, 7,  "#a266ff", "#5a20b8", "#e0c8ff"),
+    orb(86, 82, 9,  "#6ddc5a", "#2a7a1a", "#d7ffce"),
+    orb(104, 83, 8, "#ff9f3a", "#b35c00", "#ffdaa8"),
+    orb(114, 86, 5, "#ff5177", "#a8123b", "#ffccdc"),
+    orb(70, 66, 11, "#ff4444", "#8b1010", "#ffc4c4"),
+    orb(95, 65, 13, "#e7e23a", "#a89918", "#fff7a6"),
+    orb(82, 42, 17, "#ffb59a", "#c96a43", "#fff0e6"),
+  ].join("\n  ");
+  // dropping orb above jar
+  const dropping = orb(80, 12, 6, "#6ddc5a", "#2a7a1a", "#d7ffce");
+  // trajectory dashed line
+  const traj = `<line x1="80" y1="18" x2="80" y2="30" stroke="#ffffff" stroke-opacity="0.4" stroke-dasharray="2,2"/>`;
+  // merge spark
+  const spark = `
+    <g filter="url(#glow-${id})">
+      <circle cx="82" cy="42" r="20" fill="none" stroke="#ffee55" stroke-width="0.8" stroke-opacity="0.7"/>
+    </g>
+  `;
+  return bg + "\n  " + jar + "\n  " + spark + "\n  " + stack + "\n  " + traj + "\n  " + dropping;
 }
 
 // ---------- public API ----------

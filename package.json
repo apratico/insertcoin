@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.0",
+    "@types/matter-js": "^0.20.2",
     "dexie": "^4.0.10",
+    "matter-js": "^0.20.0",
     "phaser": "^4.0.0"
   },
   "devDependencies": {

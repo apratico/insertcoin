@@ -211,6 +211,17 @@ export const GAMES: GameEntry[] = [
     orientation: "portrait",
     load: () => import("./star-void/index.js"),
   },
+  {
+    id: "drop-stack",
+    title: "Drop Stack",
+    tagline: "Lascia cadere. Fondi. Esplodi.",
+    palette: { bg: "#0a1026", fg: "#ffffff", accent: "#ffcc33" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    orientation: "portrait",
+    load: () => import("./drop-stack/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

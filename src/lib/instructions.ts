@@ -254,6 +254,23 @@ const INSTRUCTIONS: Record<string, GameInstructions> = {
       "Modes: Time Attack 60s · Moves-per-level · Endless.",
     ],
   },
+  "drop-stack": {
+    title: "Drop Stack",
+    it: [
+      "Trascina il dito per mirare l'orb in alto.",
+      "Rilascia per lasciarla cadere dentro al barattolo.",
+      "Due orb dello stesso tipo che si toccano = fusione nel tipo successivo.",
+      "Orb grosse = punti alti. L'ultima tier è verde a strisce.",
+      "Game over quando un'orb resta ferma sopra la linea rossa per 2.5s.",
+    ],
+    en: [
+      "Drag your finger to aim the orb at the top.",
+      "Release to drop it into the jar.",
+      "Two same-tier orbs touching = merge into next tier.",
+      "Bigger orbs = more points. Top tier is striped green.",
+      "Game over when an orb rests above the red line for 2.5s.",
+    ],
+  },
   "color-flow": {
     title: "Color Flow",
     it: [
