@@ -1270,6 +1270,10 @@ class PlayScene extends Phaser.Scene {
     this.physics.add.overlap(this.playerShip, this.enemyBullets, (_player, bullet) => {
       this.onPlayerHit(bullet as Phaser.Physics.Arcade.Image);
     });
+    // enemy body vs player — contact damage (rams, kamikaze, blocking)
+    this.physics.add.overlap(this.playerShip, this.enemyGroup, (_player, enemy) => {
+      this.onPlayerEnemyContact(enemy as Phaser.Physics.Arcade.Image);
+    });
     // player bullets vs enemies
     this.physics.add.overlap(this.playerBullets, this.enemyGroup, (bullet, enemy) => {
       this.onBulletHitEnemy(bullet as Phaser.Physics.Arcade.Image, enemy as Phaser.Physics.Arcade.Image);
@@ -2107,6 +2111,36 @@ class PlayScene extends Phaser.Scene {
     }
   }
 
+  private onPlayerEnemyContact(enemy: Phaser.Physics.Arcade.Image): void {
+    if (this.dead) return;
+    if (this.invulnTimer > 0) return;
+    if (!enemy.active) return;
+    const kind = enemy.getData("kind") as EnemyKind;
+    const isBoss = kind === "boss1" || kind === "boss2" || kind === "boss3";
+
+    // player takes damage
+    this.playerLives--;
+    this.noHitStreak = 0;
+    this.invulnTimer = 1500;
+    playSfx("error");
+    if (navigator.vibrate) navigator.vibrate([50, 80, 50]);
+    this.cameras.main.shake(260, 0.012);
+    this.syncHUD();
+
+    // enemy: kamikaze dies, boss takes chunk damage
+    if (isBoss) {
+      this.hitBoss(40);
+    } else {
+      this.spawnExplosion(enemy.x, enemy.y);
+      enemy.setActive(false).setVisible(false);
+      (enemy.body as Phaser.Physics.Arcade.Body).reset(-200, -200);
+    }
+
+    if (this.playerLives <= 0) {
+      this.gameOver();
+    }
+  }
+
   private onBulletHitEnemy(bullet: Phaser.Physics.Arcade.Image, enemy: Phaser.Physics.Arcade.Image): void {
     if (!bullet.active || !enemy.active) return;
     // weapon type laser handled separately
@@ -2598,7 +2632,11 @@ class UIScene extends Phaser.Scene {
       });
     };
 
+    let restarting = false;
     const restart = () => {
+      if (restarting) return;
+      if (!this.gameoverOverlay.visible) return;
+      restarting = true;
       this.gameoverOverlay.setVisible(false);
       this.registry.set("score", 0);
       this.registry.set("lives", 3);
@@ -2608,10 +2646,15 @@ class UIScene extends Phaser.Scene {
       this.registry.set("weapon", "BASIC L1");
       this.registry.set("boss-hp", 0);
       this.registry.set("boss-max-hp", 0);
-      // Phaser 4: scene.restart performs a clean stop + init + create cycle.
-      this.scene.get("Play").scene.restart();
+      // Hard reset: stop Play (drops all its listeners + physics world),
+      // start fresh. scene.restart proved flaky across Phaser 4 builds.
+      const sm = this.scene;
+      sm.stop("Play");
+      this.time.delayedCall(30, () => {
+        sm.start("Play");
+        restarting = false;
+      });
     };
-    goBtn.on("pointerup", restart);
     goBtn.on("pointerdown", restart);
     // Fallback: any tap while overlay visible triggers restart (guards
     // against Phaser 4 hit-test quirks on mobile/WebGPU).
