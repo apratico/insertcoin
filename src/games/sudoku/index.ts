@@ -388,14 +388,23 @@ export function mount(container: HTMLElement): () => void {
   hintBtn = el("button", { "aria-label": "Hint" }, "btn sdk-action-btn");
   hintBtn.textContent = "HINT";
 
+  const restartBtn = el("button", { "aria-label": "Restart" }, "btn sdk-action-btn");
+  restartBtn.textContent = "NEW";
+
   actionRow.appendChild(eraseBtn);
   actionRow.appendChild(noteBtn);
   actionRow.appendChild(undoBtn);
   actionRow.appendChild(hintBtn);
+  actionRow.appendChild(restartBtn);
 
   noteBtn.addEventListener("pointerup", toggleNoteMode);
   undoBtn.addEventListener("pointerup", handleUndo);
   hintBtn.addEventListener("pointerup", handleHint);
+  restartBtn.addEventListener("pointerup", () => {
+    if (confirm("Start a new puzzle? Current progress lost.")) {
+      startGame(state.difficulty);
+    }
+  });
 
   fsBtn.addEventListener("pointerup", () => {
     const root = container.closest(".game-host") as HTMLElement | null;
@@ -1127,23 +1136,25 @@ function injectStyles(): void {
     }
     .sdk-numpad {
       display: grid;
-      grid-template-columns: repeat(9, 1fr);
+      grid-template-columns: repeat(9, minmax(0, 1fr));
       gap: 3px;
     }
     .sdk-num-btn {
-      min-height: 40px;
-      font-size: clamp(14px, 3.5vw, 20px);
+      min-width: 0;
+      min-height: 44px;
+      font-size: clamp(16px, 4.5vw, 22px);
       font-weight: bold;
       font-family: monospace;
       background: #20204a;
       border-color: #3a3a6a;
       color: #4fc3f7;
       padding: 0;
+      overflow: visible;
     }
     .sdk-num-btn:active { background: #2a2a6a; }
     .sdk-actions {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 4px;
     }
     .sdk-action-btn {
