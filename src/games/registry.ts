@@ -222,6 +222,17 @@ export const GAMES: GameEntry[] = [
     orientation: "portrait",
     load: () => import("./drop-stack/index.js"),
   },
+  {
+    id: "liquid-merge",
+    title: "Liquid Merge",
+    tagline: "Mescola. Cresci. POP!",
+    palette: { bg: "#131526", fg: "#ffffff", accent: "#ff66ff" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    orientation: "portrait",
+    load: () => import("./liquid-merge/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

@@ -254,6 +254,25 @@ const INSTRUCTIONS: Record<string, GameInstructions> = {
       "Modes: Time Attack 60s · Moves-per-level · Endless.",
     ],
   },
+  "liquid-merge": {
+    title: "Liquid Merge",
+    it: [
+      "Tap un colore della tavolozza = sceglilo per il prossimo drop.",
+      "Trascina per mirare, rilascia per far cadere la goccia.",
+      "Stessi colori che si toccano: fusione + punti (combo x2/x3).",
+      "Colori diversi: mescolano (MIX visual, no punti).",
+      "Goccia abbastanza grande (r=64) POP → bonus enorme.",
+      "Game over: goccia ferma sopra linea rossa per 2s.",
+    ],
+    en: [
+      "Tap a palette color = choose next drop paint.",
+      "Drag to aim, release to drop.",
+      "Same colors touching: merge + score (combo x2/x3).",
+      "Different colors: mix (visual blend, no score).",
+      "Blob big enough (r=64) pops → huge bonus.",
+      "Game over: blob rests above red line for 2s.",
+    ],
+  },
   "drop-stack": {
     title: "Drop Stack",
     it: [

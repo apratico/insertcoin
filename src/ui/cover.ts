@@ -972,6 +972,7 @@ function artBody(entry: GameEntry): string {
       case "block-fit": return blockFitArt(id);
       case "star-void": return starVoidArt(id);
       case "drop-stack": return dropStackArt(id);
+      case "liquid-merge": return liquidMergeArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1633,6 +1634,35 @@ function starVoidArt(id: string): string {
 
 function defaultArt(id: string, accent: string): string {
   return `<rect x="20" y="20" width="120" height="60" rx="8" fill="${accent}" fill-opacity="0.3" filter="url(#glow-${id})"/>`;
+}
+
+function liquidMergeArt(id: string): string {
+  const bg = `<rect width="160" height="100" fill="#131526"/>`;
+  // jar
+  const jar = `<rect x="40" y="22" width="80" height="70" fill="rgba(40,60,100,0.12)" stroke="#2a3450" stroke-width="1.5"/>`;
+  // blobs mixed colors (red, yellow, blue, mix purple/orange/green)
+  const blob = (cx: number, cy: number, r: number, c: string, s: string) => `
+    <ellipse cx="${cx}" cy="${cy + r * 0.8}" rx="${r * 0.7}" ry="${r * 0.15}" fill="rgba(0,0,0,0.25)"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}" stroke="${s}" stroke-width="0.6"/>
+    <ellipse cx="${cx - r * 0.35}" cy="${cy - r * 0.4}" rx="${r * 0.25}" ry="${r * 0.14}" fill="rgba(255,255,255,0.5)" transform="rotate(-30 ${cx - r * 0.35} ${cy - r * 0.4})"/>
+  `;
+  const stack = [
+    blob(55, 82, 9, "#ff3c50", "#991824"),
+    blob(75, 82, 11, "#ffe033", "#a89200"),
+    blob(95, 82, 10, "#3c78ff", "#1a3da0"),
+    blob(110, 82, 7, "#46d264", "#188a2c"),
+    blob(72, 62, 14, "#ff7830", "#c04400"),  // orange (R+Y mix)
+    blob(98, 60, 15, "#7a40ff", "#3a0080"),  // purple (R+B mix)
+    blob(84, 38, 20, "#88cc66", "#44661a"),  // big green
+  ].join("\n  ");
+  // drop incoming
+  const dropping = blob(80, 14, 8, "#ff66ff", "#8811aa");
+  const traj = `<line x1="80" y1="22" x2="80" y2="28" stroke="#ffffff" stroke-opacity="0.4" stroke-dasharray="2,2"/>`;
+  // splash ring around biggest blob (mix happening)
+  const splash = `
+    <circle cx="84" cy="38" r="24" fill="none" stroke="#ffee55" stroke-width="0.6" stroke-opacity="0.6" filter="url(#glow-${id})"/>
+  `;
+  return bg + "\n  " + jar + "\n  " + splash + "\n  " + stack + "\n  " + traj + "\n  " + dropping;
 }
 
 function dropStackArt(id: string): string {
