@@ -1485,9 +1485,9 @@ class PlayScene extends Phaser.Scene {
 
   private autoFire(): void {
     const rpmTable: Record<WeaponLevel, number> = { 1: 300, 2: 280, 3: 250, 4: 600, 5: 240 };
-    // upgrade tier: +15% RPM per tier, focus: +20% RPM
+    // upgrade tier: +15% RPM per tier, focus: +50% RPM (clearly noticeable)
     let rpm = rpmTable[this.weaponLevel] * (1 + this.upgradeTier * 0.15);
-    if (this.focusActive) rpm *= 1.2;
+    if (this.focusActive) rpm *= 1.5;
     const intervalMs = 60000 / rpm;
     this.fireTimer = intervalMs;
 
@@ -1592,10 +1592,19 @@ class PlayScene extends Phaser.Scene {
     // L1 = 1×/1dmg, L2 = 1.3×/2dmg, L3 = 1.6×/3dmg, L4 = 1.9×/5dmg, L5 = 2.3×/7dmg.
     const sizeMap: Record<WeaponLevel, number> = { 1: 1.0, 2: 1.3, 3: 1.6, 4: 1.9, 5: 2.3 };
     const dmgMap:  Record<WeaponLevel, number> = { 1: 1,   2: 2,   3: 3,   4: 5,   5: 7 };
-    const focusScaleBonus = this.focusActive ? 1.3 : 1;
-    const focusDmgBonus   = this.focusActive ? 1.5 : 1;
-    b.setScale(sizeMap[this.weaponLevel] * focusScaleBonus);
+    const focusScaleX = this.focusActive ? 2.6 : 1;   // width 2.6× (fat beam)
+    const focusScaleY = this.focusActive ? 2.0 : 1;   // length 2× (long trail)
+    const focusDmgBonus = this.focusActive ? 2 : 1;
+    const baseScale = sizeMap[this.weaponLevel];
+    b.setScale(baseScale * focusScaleX, baseScale * focusScaleY);
     b.setData("dmg", Math.ceil(dmgMap[this.weaponLevel] * focusDmgBonus));
+    if (this.focusActive) {
+      b.setTint(0xffff00);          // yellow-hot plasma (clear contrast)
+      b.setBlendMode(Phaser.BlendModes.ADD); // glowing additive
+    } else {
+      b.clearTint();
+      b.setBlendMode(Phaser.BlendModes.NORMAL);
+    }
     const body = b.body as Phaser.Physics.Arcade.Body;
     body.reset(x, y);
     body.setAllowGravity(false);
@@ -2375,28 +2384,35 @@ class PlayScene extends Phaser.Scene {
   private setFocusState(on: boolean): void {
     this.focusActive = on;
     if (on) {
+      // Bright visible cyan ring around ship. Always alpha 1, scale pulses.
       if (!this.focusHalo) {
-        this.focusHalo = this.add.circle(this.playerShip.x, this.playerShip.y, 34, 0x22eeff, 0.0)
-          .setStrokeStyle(2, 0x22eeff, 1)
-          .setDepth(9);
+        this.focusHalo = this.add.circle(this.playerShip.x, this.playerShip.y, 38, 0x000000, 0)
+          .setStrokeStyle(3, 0x22eeff, 1)
+          .setDepth(11);
       }
-      this.focusHalo.setVisible(true);
+      this.focusHalo.setVisible(true).setAlpha(1);
       this.tweens.killTweensOf(this.focusHalo);
       this.tweens.add({
         targets: this.focusHalo,
-        alpha: { from: 0.1, to: 0.35 },
-        scale: { from: 0.9, to: 1.15 },
-        duration: 600,
+        scale: { from: 0.85, to: 1.2 },
+        alpha: { from: 1, to: 0.55 },
+        duration: 500,
         yoyo: true,
         repeat: -1,
         ease: "Sine.easeInOut",
       });
-    } else if (this.focusHalo) {
-      this.tweens.killTweensOf(this.focusHalo);
-      this.focusHalo.setVisible(false);
+      // ship cyan tint (additive override on top of tier tint)
+      this.playerShip.setTint(0x22eeff);
+    } else {
+      if (this.focusHalo) {
+        this.tweens.killTweensOf(this.focusHalo);
+        this.focusHalo.setVisible(false);
+      }
+      // restore tier tint
+      const tints = [0xffffff, 0x88eaff, 0x66aaff, 0xff88ff, 0xffcc33];
+      this.playerShip.setTint(tints[this.upgradeTier] ?? 0xffffff);
     }
-    // visual brief flash on ship to confirm state change
-    this.cameras.main.flash(120, on ? 40 : 20, on ? 200 : 30, on ? 220 : 30, false);
+    this.cameras.main.flash(140, on ? 40 : 20, on ? 220 : 30, on ? 240 : 30, false);
   }
 
   private checkUpgradeTier(): void {
