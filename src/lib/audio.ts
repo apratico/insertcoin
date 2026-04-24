@@ -7,7 +7,8 @@ export type SfxName =
   | "shoot" | "hit" | "kill" | "bounce" | "pop"
   | "jump" | "slide" | "match" | "flip"
   | "win" | "lose" | "gameover" | "levelup"
-  | "click" | "error" | "countdown" | "go";
+  | "click" | "error" | "countdown" | "go"
+  | "fanfare" | "upgrade";
 
 // ---------- config ----------
 
@@ -183,10 +184,10 @@ const SFX_IMPL: Record<SfxName, () => void> = {
   // merge: sine ascending glide 440→880 in 200ms
   merge() { playOsc("sine", 440, 0.65, 0.01, 0.19, 880); },
 
-  // shoot: square 300Hz + noise burst 40ms
+  // shoot: soft laser pew — sine down-chirp 1400 → 380Hz, 80ms, light body
   shoot() {
-    playOsc("square", 300, 0.5, 0.002, 0.038);
-    playNoise(600, 0.3, 0.001, 0.039);
+    playOsc("sine", 1400, 0.35, 0.001, 0.08, 380);
+    playOsc("triangle", 700, 0.18, 0.001, 0.05, 260);
   },
 
   // hit: noise burst lowpass 200Hz, 80ms decay
@@ -239,6 +240,21 @@ const SFX_IMPL: Record<SfxName, () => void> = {
 
   // go: sine 800Hz 200ms (loud start signal)
   go() { playOsc("sine", 800, 0.85, 0.008, 0.192); },
+
+  // fanfare: extended arpeggio for big celebrations (round/sector clear)
+  // C major triad ascending, octave jump, victory hold
+  fanfare() {
+    playArpeggio("triangle", [523, 659, 784, 1047, 1319, 1568], 0.09, 0.7);
+    // bass pad underneath
+    setTimeout(() => playOsc("sine", 131, 0.5, 0.02, 0.6), 0);
+    setTimeout(() => playOsc("sine", 262, 0.4, 0.02, 0.6), 0);
+  },
+
+  // upgrade: double-chime rising (E, G, C+1) with shine
+  upgrade() {
+    playArpeggio("sine", [659, 784, 1047], 0.07, 0.7);
+    setTimeout(() => playOsc("triangle", 1568, 0.5, 0.01, 0.3), 180);
+  },
 };
 
 // ---------- mute persistence ----------

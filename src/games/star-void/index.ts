@@ -1133,6 +1133,10 @@ class PlayScene extends Phaser.Scene {
   private dead = false;
   private loopPass = 0;
 
+  // ship upgrade tier (milestones by score). Tier 0 = basic.
+  private upgradeTier = 0;
+  private readonly upgradeMilestones = [3000, 8000, 20000, 45000];
+
   // drag input
   private pointerDown = false;
   private targetX = 0;
@@ -1348,7 +1352,8 @@ class PlayScene extends Phaser.Scene {
     }
 
     // player lerp to target
-    const lerpFactor = 0.25;
+    // Tier 2+: faster lerp toward target (more responsive)
+    const lerpFactor = 0.25 + this.upgradeTier * 0.05;
     this.playerShip.x = Phaser.Math.Linear(this.playerShip.x, this.targetX, lerpFactor);
     this.playerShip.y = Phaser.Math.Linear(this.playerShip.y, this.targetY, lerpFactor);
 
@@ -1433,7 +1438,9 @@ class PlayScene extends Phaser.Scene {
 
   private autoFire(): void {
     const rpmTable: Record<WeaponLevel, number> = { 1: 300, 2: 280, 3: 250, 4: 600, 5: 240 };
-    const intervalMs = 60000 / rpmTable[this.weaponLevel];
+    // upgrade tier: +15% RPM per tier
+    const rpm = rpmTable[this.weaponLevel] * (1 + this.upgradeTier * 0.15);
+    const intervalMs = 60000 / rpm;
     this.fireTimer = intervalMs;
 
     if (this.weaponType === "laser") {
@@ -1482,6 +1489,14 @@ class PlayScene extends Phaser.Scene {
         if (b2) (b2.body as Phaser.Physics.Arcade.Body).setVelocity(20, -400);
         break;
       }
+    }
+
+    // Tier 3+: wing cannons fire helper bullets (laser path already returned)
+    if (this.upgradeTier >= 3) {
+      const wL = this.spawnPlayerBullet(x - 20, y + 6, "bullet-p-basic");
+      const wR = this.spawnPlayerBullet(x + 20, y + 6, "bullet-p-basic");
+      if (wL) (wL.body as Phaser.Physics.Arcade.Body).setVelocity(0, -480);
+      if (wR) (wR.body as Phaser.Physics.Arcade.Body).setVelocity(0, -480);
     }
   }
 
@@ -1645,18 +1660,37 @@ class PlayScene extends Phaser.Scene {
 
       switch (kind) {
         case "grunt": {
-          // straight down, set at spawn
+          // light swerve toward player when crossing mid-screen
+          const body = e.body as Phaser.Physics.Arcade.Body;
+          if (e.y > 120 && e.y < H - 200) {
+            const dx = px - e.x;
+            body.setVelocityX(Phaser.Math.Clamp(dx * 0.4, -50, 50));
+          }
           break;
         }
         case "chaser": {
+          // Horizontal chase + dash-down when aligned with player
           const body = e.body as Phaser.Physics.Arcade.Body;
           const dx = px - e.x;
-          const spd = 120;
-          body.setVelocityX(dx > 0 ? spd : dx < 0 ? -spd : 0);
+          const spd = 140;
+          body.setVelocityX(Math.abs(dx) < 6 ? 0 : dx > 0 ? spd : -spd);
+          // Dash when roughly aligned
+          if (Math.abs(dx) < 24 && e.y < H * 0.5) {
+            body.setVelocityY(Math.max(body.velocity.y, 260));
+          }
           break;
         }
         case "diver": {
-          // fire aimed bullet periodically
+          // Kamikaze: accelerate toward player when within strike range
+          const body = e.body as Phaser.Physics.Arcade.Body;
+          const dist = Phaser.Math.Distance.Between(e.x, e.y, px, this.playerShip.y);
+          if (dist < 180 && e.y < this.playerShip.y) {
+            const ang = Math.atan2(this.playerShip.y - e.y, px - e.x);
+            const boost = 40;
+            body.setVelocity(body.velocity.x + Math.cos(ang) * boost * dt / 100,
+                             body.velocity.y + Math.sin(ang) * boost * dt / 100);
+          }
+          // fire aimed bullet with lead prediction
           if (shootCd <= 0) {
             e.setData("shootCd", 2500);
             aimed(e.x, e.y + 8, px, this.playerShip.y, 1, 0, 200, "bullet-enemy-red", this.enemyBullets);
@@ -1664,11 +1698,15 @@ class PlayScene extends Phaser.Scene {
           break;
         }
         case "gunner": {
+          // Strafe sideways while holding vertical position
           const body = e.body as Phaser.Physics.Arcade.Body;
           body.setVelocityY(0);
+          const strafePhase = (e.getData("phase") as number) + dt / 500;
+          e.setData("phase", strafePhase);
+          body.setVelocityX(Math.sin(strafePhase) * 70);
           if (shootCd <= 0) {
-            e.setData("shootCd", 1200);
-            aimed(e.x, e.y + 8, px, this.playerShip.y, 3, 20, 190, "bullet-enemy-red", this.enemyBullets);
+            e.setData("shootCd", 1000);
+            aimed(e.x, e.y + 8, px, this.playerShip.y, 3, 20, 210, "bullet-enemy-red", this.enemyBullets);
           }
           break;
         }
@@ -1686,8 +1724,21 @@ class PlayScene extends Phaser.Scene {
           break;
         }
         case "tank": {
+          // Slow horizontal creep + periodic ramming charge downward
           const body = e.body as Phaser.Physics.Arcade.Body;
-          body.setVelocityX(0);
+          const phase = (e.getData("phase") as number) + dt / 1000;
+          e.setData("phase", phase);
+          body.setVelocityX(Math.sin(phase * 0.6) * 40);
+          // Ram charge every ~5s if above player
+          const ram = (e.getData("ramTimer") as number | undefined) ?? 5000;
+          const nextRam = ram - dt;
+          e.setData("ramTimer", nextRam);
+          if (nextRam <= 0 && e.y < this.playerShip.y) {
+            body.setVelocityY(180);
+            e.setData("ramTimer", 5000);
+          } else if (nextRam > 3500) {
+            body.setVelocityY(40);
+          }
           if (shootCd <= 0) {
             e.setData("shootCd", 1400);
             // side cannons spread
@@ -1699,16 +1750,28 @@ class PlayScene extends Phaser.Scene {
           break;
         }
         case "swarm": {
-          // drift slightly sideways for cluster feel
+          // Flock toward player X, sinusoidal drift
           const body = e.body as Phaser.Physics.Arcade.Body;
           const phase = (e.getData("phase") as number) + dt / 200;
           e.setData("phase", phase);
-          body.setVelocityX(Math.sin(phase) * 60);
+          const flockX = (px - e.x) * 0.8;
+          body.setVelocityX(Phaser.Math.Clamp(flockX + Math.sin(phase) * 50, -120, 120));
           break;
         }
         case "shooter": {
+          // Short teleport every ~4s within upper screen
           const body = e.body as Phaser.Physics.Arcade.Body;
           body.setVelocityY(0);
+          const tp = (e.getData("tpTimer") as number | undefined) ?? 4000;
+          const nextTp = tp - dt;
+          e.setData("tpTimer", nextTp);
+          if (nextTp <= 0) {
+            e.setData("tpTimer", 4000 + Math.random() * 1500);
+            const newX = 60 + Math.random() * (W - 120);
+            const newY = 80 + Math.random() * 120;
+            this.tweens.add({ targets: e, alpha: 0, duration: 180, yoyo: true,
+              onYoyo: () => { e.x = newX; e.y = newY; body.reset(newX, newY); } });
+          }
           if (shootCd <= 0) {
             e.setData("shootCd", 2000);
             radial(e.x, e.y, 8, 180, "bullet-enemy-pink", this.enemyBullets);
@@ -1918,6 +1981,11 @@ class PlayScene extends Phaser.Scene {
       const e = this.enemyGroup.get(x, y, texKey) as Phaser.Physics.Arcade.Image | null;
       if (!e) continue;
       e.setActive(true).setVisible(true).setDepth(7);
+      // Enemies are 30% larger than base texture for better readability
+      // (swarm stays tiny — still dangerous in numbers)
+      const enemyScale = ev.type === "swarm" ? 1 : 1.3;
+      e.setScale(enemyScale);
+      e.clearTint();
       e.setData("kind", ev.type);
       e.setData("hp", Math.ceil(cfg.hp * hpMult));
       e.setData("maxHp", Math.ceil(cfg.hp * hpMult));
@@ -2079,6 +2147,7 @@ class PlayScene extends Phaser.Scene {
     const roundIdx = bossKind === "boss1" ? 0 : bossKind === "boss2" ? 1 : bossKind === "boss3" ? 2 : -1;
     if (roundIdx < 0) return;
     const round = ROUNDS[roundIdx]!;
+
     // grant weapon: if already owns, bump level; else swap with level 2
     if (this.weaponType === round.reward) {
       this.weaponLevel = Math.min(5, this.weaponLevel + 1) as WeaponLevel;
@@ -2087,21 +2156,66 @@ class PlayScene extends Phaser.Scene {
       this.weaponLevel = 2;
     }
     this.playerLives = Math.min(5, this.playerLives + 1);
+    this.playerBombs = Math.min(9, this.playerBombs + 2);
     this.syncHUD();
+
+    // FESTA: clear bullets, confetti burst, big screen shake, fanfare
+    this.clearEnemyBullets();
+    this.spawnConfetti();
+    this.cameras.main.flash(250, 255, 255, 160);
+    this.cameras.main.shake(350, 0.012);
+    playSfx("fanfare");
+    if (navigator.vibrate) navigator.vibrate([60, 80, 60, 80, 200]);
+
     this.registry.set("round-banner", JSON.stringify({
       text: `${round.name} CLEAR`,
-      sub: `+ ${round.rewardLabel}`,
+      sub: `+${round.rewardLabel} · +1 LIFE · +2 BOMBS`,
       color: round.color,
       ts: Date.now(),
     }));
     if (roundIdx === ROUNDS.length - 1) {
-      this.registry.set("round-banner", JSON.stringify({
-        text: "VICTORY",
-        sub: "NEW LOOP +difficulty",
-        color: "#ffee44",
-        ts: Date.now(),
-      }));
+      this.time.delayedCall(2600, () => {
+        this.registry.set("round-banner", JSON.stringify({
+          text: "VICTORY",
+          sub: "NEW LOOP · DIFFICULTY +",
+          color: "#ffee44",
+          ts: Date.now(),
+        }));
+        playSfx("fanfare");
+      });
     }
+  }
+
+  private clearEnemyBullets(): void {
+    this.enemyBullets.getChildren().forEach((obj) => {
+      const b = obj as Phaser.Physics.Arcade.Image;
+      if (!b.active) return;
+      this.spawnExplosion(b.x, b.y);
+      b.setActive(false).setVisible(false);
+      (b.body as Phaser.Physics.Arcade.Body).reset(-200, -200);
+    });
+  }
+
+  private spawnConfetti(): void {
+    const W = this.scale.width;
+    const colors = [0xffcc22, 0xff3366, 0x22ffaa, 0x66aaff, 0xff88ff, 0xffffff];
+    const em = this.add.particles(0, 0, "thrust-particle", {
+      x: { min: 0, max: W },
+      y: -10,
+      speedY: { min: 140, max: 380 },
+      speedX: { min: -120, max: 120 },
+      lifespan: { min: 1600, max: 2800 },
+      scale: { start: 2.2, end: 0.6 },
+      rotate: { start: 0, end: 360 },
+      alpha: { start: 1, end: 0 },
+      quantity: 0,
+      frequency: -1,
+      tint: colors,
+    }).setDepth(45);
+    em.explode(160);
+    this.time.delayedCall(300, () => em.explode(120));
+    this.time.delayedCall(600, () => em.explode(120));
+    this.time.delayedCall(3200, () => em.destroy());
   }
 
   private onPickup(pickup: Phaser.Physics.Arcade.Image): void {
@@ -2133,6 +2247,45 @@ class PlayScene extends Phaser.Scene {
   private addScore(pts: number): void {
     this.score += pts;
     this.registry.set("score", this.score);
+    this.checkUpgradeTier();
+  }
+
+  private checkUpgradeTier(): void {
+    const next = this.upgradeTier;
+    for (let i = 0; i < this.upgradeMilestones.length; i++) {
+      if (this.score >= this.upgradeMilestones[i]! && i + 1 > this.upgradeTier) {
+        this.upgradeTier = i + 1;
+        this.applyUpgradeTier();
+        return;
+      }
+    }
+    void next;
+  }
+
+  private applyUpgradeTier(): void {
+    const tier = this.upgradeTier;
+    // Ship tint progression: white → cyan → blue → magenta → gold
+    const tints = [0xffffff, 0x88eaff, 0x66aaff, 0xff88ff, 0xffcc33];
+    this.playerShip.setTint(tints[tier] ?? 0xffffff);
+    // Bomb cap raise at T2
+    if (tier >= 2) this.playerBombs = Math.min(5, this.playerBombs + 1);
+    // Thrust emitter richer at tier 2+
+    if (tier >= 2) {
+      this.thrustEmitter.setQuantity(4);
+    }
+    playSfx("upgrade");
+    if (navigator.vibrate) navigator.vibrate([30, 40, 60]);
+    this.registry.set("round-banner", JSON.stringify({
+      text: `TIER ${tier}`,
+      sub: tier === 1 ? "+15% fire rate"
+         : tier === 2 ? "+30% speed · +1 bomb · richer thrust"
+         : tier === 3 ? "wing cannons ONLINE"
+         : tier === 4 ? "MAX POWER · gold hull"
+         : "upgrade",
+      color: "#ffcc33",
+      ts: Date.now(),
+    }));
+    this.syncHUD();
   }
 
   private addBomb(): void {
@@ -2209,8 +2362,11 @@ class UIScene extends Phaser.Scene {
   private livesText!: Phaser.GameObjects.Text;
   private bombsText!: Phaser.GameObjects.Text;
   private weaponText!: Phaser.GameObjects.Text;
-  private bombBtn!: Phaser.GameObjects.Rectangle;
-  private bombBtnLabel!: Phaser.GameObjects.Text;
+  private bombBtn!: Phaser.GameObjects.Container;
+  private bombBtnHit!: Phaser.GameObjects.Arc;
+  private bombBtnCount!: Phaser.GameObjects.Text;
+  private bombBtnIconGfx!: Phaser.GameObjects.Graphics;
+  private bombBtnPulse = 0;
   private bossBar!: Phaser.GameObjects.Graphics;
   private gameoverOverlay!: Phaser.GameObjects.Container;
   private banner!: Phaser.GameObjects.Container;
@@ -2252,20 +2408,58 @@ class UIScene extends Phaser.Scene {
       fontFamily: "monospace", fontSize: "10px", color: "#88ff88",
     }).setDepth(50);
 
-    // BOMB button bottom-right
+    // BOMB button bottom-right — circular, glowy, bomb icon + count badge
     const H = this.scale.height;
-    this.bombBtn = this.add.rectangle(W - 40, H - 50, 60, 60, 0xff2266, 0.85)
-      .setDepth(55).setInteractive({ useHandCursor: true });
-    this.bombBtnLabel = this.add.text(W - 40, H - 50, "BOMB", {
-      fontFamily: "monospace", fontSize: "10px", color: "#ffffff",
-    }).setOrigin(0.5).setDepth(56);
-
-    this.bombBtn.on("pointerdown", () => {
+    const bbX = W - 46, bbY = H - 52;
+    this.bombBtn = this.add.container(bbX, bbY).setDepth(55);
+    // outer glow
+    const bbGlow = this.add.circle(0, 0, 38, 0xff2266, 0.25);
+    // main disk (radial look via multiple layered circles)
+    const bbOuter = this.add.circle(0, 0, 30, 0x440011, 1);
+    const bbInner = this.add.circle(0, 0, 26, 0xff3366, 1);
+    const bbRim   = this.add.circle(0, 0, 26, 0x000000, 0).setStrokeStyle(2, 0xffcc44, 0.9);
+    const bbShine = this.add.circle(-7, -8, 8, 0xffffff, 0.25);
+    // bomb icon via Graphics (drawn in container coords)
+    this.bombBtnIconGfx = this.add.graphics();
+    const g = this.bombBtnIconGfx;
+    // bomb body (dark circle)
+    g.fillStyle(0x111111, 1);
+    g.fillCircle(0, 2, 11);
+    // highlight
+    g.fillStyle(0x444444, 1);
+    g.fillCircle(-3, -1, 3);
+    // fuse
+    g.lineStyle(2, 0xaa6611, 1);
+    g.beginPath(); g.moveTo(5, -6); g.lineTo(10, -12); g.strokePath();
+    // spark
+    g.fillStyle(0xffee44, 1);
+    g.fillCircle(11, -13, 2.5);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(11, -13, 1);
+    // count badge
+    const badgeBg = this.add.circle(20, -18, 10, 0xffcc22, 1);
+    badgeBg.setStrokeStyle(1, 0x000000, 1);
+    this.bombBtnCount = this.add.text(20, -18, "3", {
+      fontFamily: "monospace", fontSize: "12px", color: "#111", fontStyle: "bold",
+    }).setOrigin(0.5);
+    this.bombBtn.add([bbGlow, bbOuter, bbInner, bbRim, bbShine, this.bombBtnIconGfx, badgeBg, this.bombBtnCount]);
+    // hit area (invisible arc for cleaner hit test than the container)
+    this.bombBtnHit = this.add.circle(bbX, bbY, 34, 0x000000, 0).setDepth(56).setInteractive({ useHandCursor: true });
+    this.bombBtnHit.on("pointerdown", () => {
       const play = this.scene.get("Play") as PlayScene;
       play.events.emit("bomb");
+      this.tweens.add({ targets: this.bombBtn, scale: { from: 0.85, to: 1 }, duration: 180, ease: "Back.easeOut" });
     });
-    this.bombBtn.on("pointerover", () => this.bombBtn.setFillStyle(0xff4488));
-    this.bombBtn.on("pointerout",  () => this.bombBtn.setFillStyle(0xff2266));
+    // idle pulse so the button visibly invites a tap
+    this.tweens.add({
+      targets: this.bombBtn,
+      scale: { from: 0.96, to: 1.05 },
+      duration: 750,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    void this.bombBtnPulse; // kept for future use
 
     // boss health bar
     this.bossBar = this.add.graphics().setDepth(52);
@@ -2353,7 +2547,10 @@ class UIScene extends Phaser.Scene {
       case "bombs": {
         const n = value as number;
         this.bombsText.setText("💣".repeat(Math.max(0, n)));
-        this.bombBtnLabel.setText(`BOMB\n${n}`);
+        this.bombBtnCount.setText(String(Math.max(0, n)));
+        const disabled = n <= 0;
+        this.bombBtn.setAlpha(disabled ? 0.45 : 1);
+        this.bombBtnHit.input!.enabled = !disabled;
         break;
       }
       case "boss-hp":
@@ -2413,8 +2610,8 @@ class UIScene extends Phaser.Scene {
     this.waveText.setX(W / 2);
     this.livesText.setX(W - 8);
     this.bombsText.setX(W - 8);
-    this.bombBtn.setPosition(W - 40, H - 50);
-    this.bombBtnLabel.setPosition(W - 40, H - 50);
+    this.bombBtn.setPosition(W - 46, H - 52);
+    this.bombBtnHit.setPosition(W - 46, H - 52);
     this.gameoverOverlay.setPosition(W / 2, H / 2);
     this.banner.setPosition(W / 2, H * 0.35);
   }
