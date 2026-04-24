@@ -2579,19 +2579,29 @@ class UIScene extends Phaser.Scene {
 
     this.focusBtnHit = this.add.circle(fbX, fbY, 32, 0x000000, 0).setDepth(56).setInteractive({ useHandCursor: true });
     const play = this.scene.get("Play") as PlayScene;
+    // Toggle mode: tap to enable/disable. Easier than hold on mobile.
+    let focusOn = false;
     const setFocus = (on: boolean) => {
+      if (focusOn === on) return;
+      focusOn = on;
       play.events.emit(on ? "focus-on" : "focus-off");
       this.tweens.killTweensOf(this.focusBtn);
       this.tweens.add({
         targets: this.focusBtn,
-        scale: on ? 1.1 : 1,
-        duration: 120,
+        scale: on ? 1.15 : 1,
+        duration: 150,
+        ease: "Back.easeOut",
       });
       fbInner.setFillStyle(on ? 0x22eeff : 0x0088cc);
+      fbRim.setStrokeStyle(2, on ? 0xffffff : 0x88eaff, on ? 1 : 0.9);
+      fbLbl.setText(on ? "ON" : "FOCUS");
     };
-    this.focusBtnHit.on("pointerdown", () => setFocus(true));
-    this.focusBtnHit.on("pointerup",   () => setFocus(false));
-    this.focusBtnHit.on("pointerout",  () => setFocus(false));
+    this.focusBtnHit.on("pointerdown", () => {
+      setFocus(!focusOn);
+      if (navigator.vibrate) navigator.vibrate(12);
+    });
+    // Auto-turn-off when game over so next run starts clean
+    this.events.on("star-void:gameover", () => setFocus(false));
 
     // boss health bar
     this.bossBar = this.add.graphics().setDepth(52);
