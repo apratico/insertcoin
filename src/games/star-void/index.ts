@@ -1613,6 +1613,9 @@ class PlayScene extends Phaser.Scene {
     this.enemyGroup.getChildren().forEach((obj) => {
       const e = obj as Phaser.Physics.Arcade.Image;
       if (!e.active) return;
+      // skip boss here — handled by bossRef branch below to stay in sync
+      const k = e.getData("kind") as EnemyKind;
+      if (k === "boss1" || k === "boss2" || k === "boss3") return;
       if (Math.abs(e.x - x) < 10) {
         this.hitEnemy(e, dmg);
       }
@@ -1638,10 +1641,12 @@ class PlayScene extends Phaser.Scene {
       (b.body as Phaser.Physics.Arcade.Body).reset(-200, -200);
     });
 
-    // damage all on-screen enemies
+    // damage all on-screen enemies (skip boss — uses own HP bar)
     this.enemyGroup.getChildren().forEach((obj) => {
       const e = obj as Phaser.Physics.Arcade.Image;
       if (!e.active) return;
+      const k = e.getData("kind") as EnemyKind;
+      if (k === "boss1" || k === "boss2" || k === "boss3") return;
       this.hitEnemy(e, 50);
     });
 
@@ -2102,6 +2107,13 @@ class PlayScene extends Phaser.Scene {
     (bullet.body as Phaser.Physics.Arcade.Body).reset(-200, -200);
 
     const dmg = (bullet.getData("dmg") as number | undefined) ?? 1;
+    // Boss uses its own HP bar & kill path — don't route through hitEnemy
+    // (would desync the bar and skip round-clear flow).
+    const kind = enemy.getData("kind") as EnemyKind;
+    if (kind === "boss1" || kind === "boss2" || kind === "boss3") {
+      this.hitBoss(dmg);
+      return;
+    }
     this.hitEnemy(enemy, dmg);
   }
 
