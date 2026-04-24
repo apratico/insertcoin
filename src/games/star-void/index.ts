@@ -72,43 +72,155 @@ class BootScene extends Phaser.Scene {
   }
 
   private makePlayerShip(): void {
-    const ct = this.textures.createCanvas("player-ship", 24, 28);
+    // 48x56 fighter — realistic silhouette w/ outer wings, fuselage, cockpit glow, twin engines
+    const W = 48, H = 56;
+    const ct = this.textures.createCanvas("player-ship", W, H);
     if (!ct) return;
     const ctx = ct.context;
-    // hull
-    ctx.fillStyle = "#003366";
+
+    // === outer wings (sweep-back) ===
+    // dark base
+    ctx.fillStyle = "#0a1a3a";
     ctx.beginPath();
-    ctx.moveTo(12, 0);
-    ctx.lineTo(24, 28);
-    ctx.lineTo(12, 22);
-    ctx.lineTo(0, 28);
-    ctx.closePath();
-    ctx.fill();
-    // cyan overlay
-    ctx.fillStyle = "#00ccff";
+    ctx.moveTo(0, 52); ctx.lineTo(10, 28); ctx.lineTo(20, 38); ctx.lineTo(16, 50);
+    ctx.closePath(); ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(12, 2);
-    ctx.lineTo(20, 26);
-    ctx.lineTo(12, 20);
-    ctx.lineTo(4, 26);
-    ctx.closePath();
+    ctx.moveTo(W, 52); ctx.lineTo(W - 10, 28); ctx.lineTo(W - 20, 38); ctx.lineTo(W - 16, 50);
+    ctx.closePath(); ctx.fill();
+    // wing top-plate highlight
+    ctx.fillStyle = "#1e4a82";
+    ctx.beginPath();
+    ctx.moveTo(3, 50); ctx.lineTo(11, 30); ctx.lineTo(18, 38); ctx.lineTo(15, 47);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(W - 3, 50); ctx.lineTo(W - 11, 30); ctx.lineTo(W - 18, 38); ctx.lineTo(W - 15, 47);
+    ctx.closePath(); ctx.fill();
+    // wingtip lights (red port / green starboard)
+    ctx.fillStyle = "#ff3344";
+    ctx.beginPath(); ctx.arc(1, 51, 1.6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#22ff88";
+    ctx.beginPath(); ctx.arc(W - 1, 51, 1.6, 0, Math.PI * 2); ctx.fill();
+
+    // === fuselage (dart) ===
+    // dark outline
+    ctx.fillStyle = "#071229";
+    ctx.beginPath();
+    ctx.moveTo(24, 0);
+    ctx.lineTo(34, 22);
+    ctx.lineTo(38, 44);
+    ctx.lineTo(32, 52);
+    ctx.lineTo(24, 48);
+    ctx.lineTo(16, 52);
+    ctx.lineTo(10, 44);
+    ctx.lineTo(14, 22);
+    ctx.closePath(); ctx.fill();
+    // mid-tone hull
+    ctx.fillStyle = "#1e4a82";
+    ctx.beginPath();
+    ctx.moveTo(24, 3);
+    ctx.lineTo(32, 22);
+    ctx.lineTo(35, 42);
+    ctx.lineTo(30, 49);
+    ctx.lineTo(24, 46);
+    ctx.lineTo(18, 49);
+    ctx.lineTo(13, 42);
+    ctx.lineTo(16, 22);
+    ctx.closePath(); ctx.fill();
+    // highlight left strip
+    ctx.fillStyle = "#3a78c8";
+    ctx.beginPath();
+    ctx.moveTo(24, 6);
+    ctx.lineTo(30, 22);
+    ctx.lineTo(32, 40);
+    ctx.lineTo(28, 47);
+    ctx.lineTo(24, 44);
+    ctx.closePath(); ctx.fill();
+    // specular sheen
+    ctx.fillStyle = "#aacfff";
+    ctx.fillRect(23, 6, 2, 14);
+    ctx.fillStyle = "#6aa8e8";
+    ctx.fillRect(22, 20, 1, 20);
+
+    // panel seams
+    ctx.strokeStyle = "#041027";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(19, 26); ctx.lineTo(29, 26);
+    ctx.moveTo(18, 36); ctx.lineTo(30, 36);
+    ctx.stroke();
+
+    // === cockpit canopy ===
+    // canopy glass frame
+    ctx.fillStyle = "#00152a";
+    ctx.beginPath();
+    ctx.ellipse(24, 20, 5, 8, 0, 0, Math.PI * 2);
     ctx.fill();
-    // white core
+    // canopy glass
+    const cg = ctx.createLinearGradient(24, 12, 24, 28);
+    cg.addColorStop(0, "#88eaff");
+    cg.addColorStop(0.5, "#22a8ff");
+    cg.addColorStop(1, "#005099");
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.ellipse(24, 20, 4, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // highlight on glass
     ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.8;
     ctx.beginPath();
-    ctx.arc(12, 14, 4, 0, Math.PI * 2);
+    ctx.ellipse(22.5, 17, 1, 2.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    // wings
-    ctx.fillStyle = "#0055aa";
+    ctx.globalAlpha = 1;
+
+    // === nose cone ===
+    ctx.fillStyle = "#001a40";
     ctx.beginPath();
-    ctx.moveTo(0, 28); ctx.lineTo(-6, 18); ctx.lineTo(4, 20);
-    ctx.closePath(); ctx.fill();
+    ctx.moveTo(24, 0);
+    ctx.lineTo(27, 8);
+    ctx.lineTo(21, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#ff3366";
     ctx.beginPath();
-    ctx.moveTo(24, 28); ctx.lineTo(30, 18); ctx.lineTo(20, 20);
-    ctx.closePath(); ctx.fill();
-    // engine
-    ctx.fillStyle = "#ffcc00";
-    ctx.fillRect(9, 25, 6, 3);
+    ctx.arc(24, 7, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // === engine nacelles (twin at tail) ===
+    // housings
+    ctx.fillStyle = "#0a1a3a";
+    ctx.fillRect(15, 44, 7, 10);
+    ctx.fillRect(26, 44, 7, 10);
+    ctx.fillStyle = "#1e4a82";
+    ctx.fillRect(16, 45, 5, 8);
+    ctx.fillRect(27, 45, 5, 8);
+    // engine rim
+    ctx.fillStyle = "#030712";
+    ctx.fillRect(16, 52, 5, 3);
+    ctx.fillRect(27, 52, 5, 3);
+    // engine glow
+    const eg1 = ctx.createRadialGradient(18.5, 55, 0, 18.5, 55, 5);
+    eg1.addColorStop(0, "#ffffff");
+    eg1.addColorStop(0.3, "#ffdd66");
+    eg1.addColorStop(0.7, "#ff8822");
+    eg1.addColorStop(1, "rgba(255,80,0,0)");
+    ctx.fillStyle = eg1;
+    ctx.beginPath(); ctx.arc(18.5, 55, 5, 0, Math.PI * 2); ctx.fill();
+    const eg2 = ctx.createRadialGradient(29.5, 55, 0, 29.5, 55, 5);
+    eg2.addColorStop(0, "#ffffff");
+    eg2.addColorStop(0.3, "#ffdd66");
+    eg2.addColorStop(0.7, "#ff8822");
+    eg2.addColorStop(1, "rgba(255,80,0,0)");
+    ctx.fillStyle = eg2;
+    ctx.beginPath(); ctx.arc(29.5, 55, 5, 0, Math.PI * 2); ctx.fill();
+
+    // === wing-mounted cannons ===
+    ctx.fillStyle = "#2a3a4a";
+    ctx.fillRect(10, 32, 2, 8);
+    ctx.fillRect(36, 32, 2, 8);
+    ctx.fillStyle = "#88a0b8";
+    ctx.fillRect(10, 31, 2, 2);
+    ctx.fillRect(36, 31, 2, 2);
+
     ct.refresh();
   }
 
@@ -146,102 +258,275 @@ class BootScene extends Phaser.Scene {
   }
 
   private makeEnemies(): void {
-    // grunt: red triangle
+    // ─── grunt: crimson interceptor arrowhead (40x40, nose-down) ───
     {
-      const ct = this.textures.createCanvas("enemy-grunt", 20, 20);
+      const W = 40, H = 40;
+      const ct = this.textures.createCanvas("enemy-grunt", W, H);
       if (ct) {
         const ctx = ct.context;
-        ctx.fillStyle = "#ff2200";
+        // dark outline
+        ctx.fillStyle = "#2a0000";
         ctx.beginPath();
-        ctx.moveTo(10, 20); ctx.lineTo(20, 0); ctx.lineTo(0, 0);
+        ctx.moveTo(20, 40); ctx.lineTo(40, 4); ctx.lineTo(32, 0); ctx.lineTo(8, 0); ctx.lineTo(0, 4);
         ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#ff8800";
+        // mid
+        ctx.fillStyle = "#aa1a0c";
         ctx.beginPath();
-        ctx.moveTo(10, 16); ctx.lineTo(17, 2); ctx.lineTo(3, 2);
+        ctx.moveTo(20, 36); ctx.lineTo(35, 6); ctx.lineTo(30, 3); ctx.lineTo(10, 3); ctx.lineTo(5, 6);
         ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#ffff00";
-        ctx.fillRect(7, 8, 6, 3);
+        // highlight
+        ctx.fillStyle = "#ff5522";
+        ctx.beginPath();
+        ctx.moveTo(20, 30); ctx.lineTo(30, 10); ctx.lineTo(26, 7); ctx.lineTo(14, 7); ctx.lineTo(10, 10);
+        ctx.closePath(); ctx.fill();
+        // cockpit
+        ctx.fillStyle = "#120200";
+        ctx.beginPath(); ctx.ellipse(20, 14, 4, 6, 0, 0, Math.PI * 2); ctx.fill();
+        const cg = ctx.createRadialGradient(20, 13, 0, 20, 14, 5);
+        cg.addColorStop(0, "#ffff88");
+        cg.addColorStop(0.5, "#ffaa22");
+        cg.addColorStop(1, "#551100");
+        ctx.fillStyle = cg;
+        ctx.beginPath(); ctx.ellipse(20, 14, 3, 5, 0, 0, Math.PI * 2); ctx.fill();
+        // wing tip engines (exhaust at top — enemy faces down)
+        ctx.fillStyle = "#2a0000";
+        ctx.fillRect(4, 2, 6, 4);
+        ctx.fillRect(30, 2, 6, 4);
+        ctx.fillStyle = "#ff6622";
+        ctx.fillRect(5, 0, 4, 3);
+        ctx.fillRect(31, 0, 4, 3);
+        // panel seams
+        ctx.strokeStyle = "#2a0000";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(13, 22); ctx.lineTo(27, 22);
+        ctx.stroke();
+        // nose tip
+        ctx.fillStyle = "#ffaa00";
+        ctx.beginPath(); ctx.arc(20, 38, 1.5, 0, Math.PI * 2); ctx.fill();
         ct.refresh();
       }
     }
-    // chaser: oblique shape
+    // ─── chaser: violet dart interceptor (44x32, diamond sleek) ───
     {
-      const ct = this.textures.createCanvas("enemy-chaser", 22, 16);
+      const W = 44, H = 32;
+      const ct = this.textures.createCanvas("enemy-chaser", W, H);
       if (ct) {
         const ctx = ct.context;
-        ctx.fillStyle = "#aa00ff";
+        // dark body
+        ctx.fillStyle = "#1a0030";
         ctx.beginPath();
-        ctx.moveTo(11, 0); ctx.lineTo(22, 8); ctx.lineTo(11, 16); ctx.lineTo(0, 8);
+        ctx.moveTo(22, 0); ctx.lineTo(44, 16); ctx.lineTo(22, 32); ctx.lineTo(0, 16);
         ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#dd66ff";
+        // mid hull
+        ctx.fillStyle = "#6a1aaa";
         ctx.beginPath();
-        ctx.arc(11, 8, 4, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(22, 4); ctx.lineTo(39, 16); ctx.lineTo(22, 28); ctx.lineTo(5, 16);
+        ctx.closePath(); ctx.fill();
+        // bright core plate
+        ctx.fillStyle = "#a044ee";
+        ctx.beginPath();
+        ctx.moveTo(22, 10); ctx.lineTo(32, 16); ctx.lineTo(22, 22); ctx.lineTo(12, 16);
+        ctx.closePath(); ctx.fill();
+        // glowing eye
+        const eg = ctx.createRadialGradient(22, 16, 0, 22, 16, 6);
+        eg.addColorStop(0, "#ffffff");
+        eg.addColorStop(0.4, "#ff88ff");
+        eg.addColorStop(1, "rgba(150,0,200,0)");
+        ctx.fillStyle = eg;
+        ctx.beginPath(); ctx.arc(22, 16, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath(); ctx.arc(22, 16, 2, 0, Math.PI * 2); ctx.fill();
+        // side blades
+        ctx.fillStyle = "#3a0066";
+        ctx.fillRect(0, 15, 6, 2);
+        ctx.fillRect(38, 15, 6, 2);
+        // wing-tip glow
+        ctx.fillStyle = "#ff88ff";
+        ctx.beginPath(); ctx.arc(1, 16, 1.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(W - 1, 16, 1.4, 0, Math.PI * 2); ctx.fill();
         ct.refresh();
       }
     }
-    // diver: diamond
+    // ─── diver: amber diamond bomber (40x40) ───
     {
-      const ct = this.textures.createCanvas("enemy-diver", 20, 20);
+      const W = 40, H = 40;
+      const ct = this.textures.createCanvas("enemy-diver", W, H);
       if (ct) {
         const ctx = ct.context;
-        ctx.fillStyle = "#ff8800";
+        // dark hull
+        ctx.fillStyle = "#2a1000";
         ctx.beginPath();
-        ctx.moveTo(10, 0); ctx.lineTo(20, 10); ctx.lineTo(10, 20); ctx.lineTo(0, 10);
+        ctx.moveTo(20, 0); ctx.lineTo(40, 20); ctx.lineTo(20, 40); ctx.lineTo(0, 20);
         ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#ffcc44";
+        // mid
+        ctx.fillStyle = "#aa5500";
         ctx.beginPath();
-        ctx.moveTo(10, 3); ctx.lineTo(17, 10); ctx.lineTo(10, 17); ctx.lineTo(3, 10);
+        ctx.moveTo(20, 4); ctx.lineTo(36, 20); ctx.lineTo(20, 36); ctx.lineTo(4, 20);
         ctx.closePath(); ctx.fill();
+        // highlight
+        ctx.fillStyle = "#ffaa22";
+        ctx.beginPath();
+        ctx.moveTo(20, 9); ctx.lineTo(31, 20); ctx.lineTo(20, 31); ctx.lineTo(9, 20);
+        ctx.closePath(); ctx.fill();
+        // armored ridges
+        ctx.strokeStyle = "#2a1000";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(20, 9); ctx.lineTo(20, 31);
+        ctx.moveTo(9, 20); ctx.lineTo(31, 20);
+        ctx.stroke();
+        // eye / lens
+        const eg = ctx.createRadialGradient(20, 20, 0, 20, 20, 5);
+        eg.addColorStop(0, "#ffffee");
+        eg.addColorStop(0.5, "#ffaa00");
+        eg.addColorStop(1, "#331100");
+        ctx.fillStyle = eg;
+        ctx.beginPath(); ctx.arc(20, 20, 4, 0, Math.PI * 2); ctx.fill();
+        // tip thrusters
+        ctx.fillStyle = "#ff6622";
+        ctx.fillRect(19, 37, 2, 3);
+        ctx.fillRect(37, 19, 3, 2);
+        ctx.fillRect(0, 19, 3, 2);
         ct.refresh();
       }
     }
-    // gunner: box with wings
+    // ─── gunner: olive turret platform (56x48) ───
     {
-      const ct = this.textures.createCanvas("enemy-gunner", 28, 24);
+      const W = 56, H = 48;
+      const ct = this.textures.createCanvas("enemy-gunner", W, H);
       if (ct) {
         const ctx = ct.context;
-        ctx.fillStyle = "#226600";
-        ctx.fillRect(4, 4, 20, 16);
-        ctx.fillStyle = "#44aa00";
-        ctx.fillRect(6, 6, 16, 12);
-        ctx.fillStyle = "#226600";
-        ctx.fillRect(0, 8, 4, 8);
-        ctx.fillRect(24, 8, 4, 8);
-        ctx.fillStyle = "#88ff00";
-        ctx.fillRect(12, 0, 4, 4);
+        // outer hull plates
+        ctx.fillStyle = "#0a1a00";
+        ctx.fillRect(8, 8, 40, 32);
+        ctx.fillStyle = "#224400";
+        ctx.fillRect(10, 10, 36, 28);
+        // top armor strip
+        ctx.fillStyle = "#336600";
+        ctx.fillRect(12, 12, 32, 8);
+        // main plate
+        ctx.fillStyle = "#558822";
+        ctx.fillRect(14, 20, 28, 14);
+        // rivets
+        ctx.fillStyle = "#111";
+        [16, 24, 32, 40].forEach(x => {
+          ctx.beginPath(); ctx.arc(x, 16, 1, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(x, 34, 1, 0, Math.PI * 2); ctx.fill();
+        });
+        // side cannons (shoot down)
+        ctx.fillStyle = "#111a00";
+        ctx.fillRect(0, 18, 10, 10);
+        ctx.fillRect(46, 18, 10, 10);
+        ctx.fillStyle = "#334400";
+        ctx.fillRect(1, 19, 8, 8);
+        ctx.fillRect(47, 19, 8, 8);
+        ctx.fillStyle = "#2a1000";
+        ctx.fillRect(3, 27, 4, 6);
+        ctx.fillRect(49, 27, 4, 6);
+        // muzzle glow
+        ctx.fillStyle = "#ffdd22";
+        ctx.fillRect(4, 31, 2, 3);
+        ctx.fillRect(50, 31, 2, 3);
+        // central turret dome
+        const tg = ctx.createRadialGradient(28, 26, 0, 28, 26, 9);
+        tg.addColorStop(0, "#ccff66");
+        tg.addColorStop(0.6, "#66aa22");
+        tg.addColorStop(1, "#112200");
+        ctx.fillStyle = tg;
+        ctx.beginPath(); ctx.arc(28, 26, 7, 0, Math.PI * 2); ctx.fill();
+        // turret barrel (down)
+        ctx.fillStyle = "#224400";
+        ctx.fillRect(26, 33, 4, 8);
+        ctx.fillStyle = "#ffff88";
+        ctx.fillRect(27, 40, 2, 2);
+        // antennae
+        ctx.strokeStyle = "#556622";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(14, 12); ctx.lineTo(11, 4);
+        ctx.moveTo(42, 12); ctx.lineTo(45, 4);
+        ctx.stroke();
+        ctx.fillStyle = "#ff3333";
+        ctx.beginPath(); ctx.arc(11, 4, 1.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(45, 4, 1.2, 0, Math.PI * 2); ctx.fill();
         ct.refresh();
       }
     }
-    // shooter: sphere with spikes
+    // ─── shooter: spiked battlesphere (64x64) ───
     {
-      const ct = this.textures.createCanvas("enemy-shooter", 32, 32);
+      const W = 64, H = 64;
+      const ct = this.textures.createCanvas("enemy-shooter", W, H);
       if (ct) {
         const ctx = ct.context;
-        ctx.fillStyle = "#0044aa";
-        ctx.beginPath();
-        ctx.arc(16, 16, 12, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#0088ff";
-        ctx.beginPath();
-        ctx.arc(16, 16, 8, 0, Math.PI * 2);
-        ctx.fill();
-        // spikes
-        ctx.fillStyle = "#44aaff";
-        for (let i = 0; i < 8; i++) {
-          const a = (i / 8) * Math.PI * 2;
+        const cx = 32, cy = 32;
+        // outer spikes (12 pointed)
+        ctx.fillStyle = "#001a44";
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
           ctx.save();
-          ctx.translate(16, 16);
+          ctx.translate(cx, cy);
           ctx.rotate(a);
           ctx.beginPath();
-          ctx.moveTo(0, -12); ctx.lineTo(2, -10); ctx.lineTo(-2, -10);
+          ctx.moveTo(0, -30); ctx.lineTo(4, -22); ctx.lineTo(-4, -22);
           ctx.closePath(); ctx.fill();
           ctx.restore();
         }
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = "#0066cc";
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(a);
+          ctx.beginPath();
+          ctx.moveTo(0, -28); ctx.lineTo(3, -22); ctx.lineTo(-3, -22);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
+        // outer shell
+        ctx.fillStyle = "#001130";
+        ctx.beginPath(); ctx.arc(cx, cy, 24, 0, Math.PI * 2); ctx.fill();
+        // shell gradient
+        const sg = ctx.createRadialGradient(cx - 6, cy - 6, 2, cx, cy, 24);
+        sg.addColorStop(0, "#55aaff");
+        sg.addColorStop(0.35, "#0a66cc");
+        sg.addColorStop(0.8, "#001a55");
+        sg.addColorStop(1, "#000814");
+        ctx.fillStyle = sg;
+        ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2); ctx.fill();
+        // latitude/longitude lines
+        ctx.strokeStyle = "#000a22";
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.arc(13, 13, 3, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.ellipse(cx, cy, 22, 7, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 7, 22, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        // rivets around equator
+        ctx.fillStyle = "#002a66";
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          const rx = cx + Math.cos(a) * 18;
+          const ry = cy + Math.sin(a) * 18;
+          ctx.beginPath(); ctx.arc(rx, ry, 1.4, 0, Math.PI * 2); ctx.fill();
+        }
+        // glowing eye/core
+        const eg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 10);
+        eg.addColorStop(0, "#ffffff");
+        eg.addColorStop(0.25, "#88eaff");
+        eg.addColorStop(0.55, "#1177dd");
+        eg.addColorStop(1, "rgba(0,40,120,0)");
+        ctx.fillStyle = eg;
+        ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
+        // pupil
+        ctx.fillStyle = "#000814";
+        ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ff2266";
+        ctx.beginPath(); ctx.arc(cx, cy, 2.2, 0, Math.PI * 2); ctx.fill();
+        // specular highlight
+        ctx.fillStyle = "rgba(255,255,255,0.45)";
+        ctx.beginPath(); ctx.ellipse(cx - 8, cy - 10, 4, 2, -0.5, 0, Math.PI * 2); ctx.fill();
         ct.refresh();
       }
     }
@@ -370,50 +655,131 @@ class BootScene extends Phaser.Scene {
   }
 
   private makeStarLayers(): void {
-    const configs: Array<[string, string, number]> = [
-      ["star-fast",  "#ffffff", 5],
-      ["star-mid",   "#aaddff", 3],
-      ["star-slow",  "#8866cc", 2],
+    // Night-sky look: deep navy background + dense small white/blue stars
+    // with soft halos. A handful of hero stars get 4-point diffraction spikes.
+    // No colorful nebula — only a very subtle dark-blue fog for depth.
+
+    type LayerCfg = {
+      key: string;
+      size: number;
+      count: number;
+      seed: number;
+      heroChance: number;
+      minR: number;
+      maxR: number;
+      colors: string[];
+    };
+    const layers: LayerCfg[] = [
+      // Far / small dusty stars (lots of tiny points)
+      { key: "star-slow", size: 512, count: 600, seed: 53,
+        heroChance: 0.0,
+        minR: 0.3, maxR: 0.7,
+        colors: ["#b8c8e0", "#8c9cc0", "#a0b5d8"] },
+      // Mid layer: medium white + pale-blue stars with halo
+      { key: "star-mid",  size: 512, count: 320, seed: 29,
+        heroChance: 0.01,
+        minR: 0.6, maxR: 1.4,
+        colors: ["#ffffff", "#dce9ff", "#b8d0ff"] },
+      // Near layer: bigger luminous stars with frequent spikes
+      { key: "star-fast", size: 512, count: 140, seed: 11,
+        heroChance: 0.08,
+        minR: 1.0, maxR: 2.4,
+        colors: ["#ffffff", "#cfeaff", "#e8f1ff"] },
     ];
-    configs.forEach(([key, color, count]) => {
-      const ct = this.textures.createCanvas(key, 64, 64);
-      if (!ct) return;
+
+    for (const cfg of layers) {
+      const ct = this.textures.createCanvas(cfg.key, cfg.size, cfg.size);
+      if (!ct) continue;
       const ctx = ct.context;
-      ctx.fillStyle = "#000000";
-      ctx.fillRect(0, 0, 64, 64);
-      ctx.fillStyle = color;
-      const rng = seededRng(key.charCodeAt(4));
-      for (let i = 0; i < count; i++) {
-        const x = Math.floor(rng() * 64);
-        const y = Math.floor(rng() * 64);
-        const r = rng() > 0.7 ? 1.5 : 1;
+      ctx.clearRect(0, 0, cfg.size, cfg.size);
+      const rng = seededRng(cfg.seed);
+
+      for (let i = 0; i < cfg.count; i++) {
+        const x = rng() * cfg.size;
+        const y = rng() * cfg.size;
+        const color = cfg.colors[Math.floor(rng() * cfg.colors.length)]!;
+        const r = cfg.minR + rng() * (cfg.maxR - cfg.minR);
+
+        // Halo bloom
+        const haloR = r * 5;
+        const grd = ctx.createRadialGradient(x, y, 0, x, y, haloR);
+        grd.addColorStop(0, hexWithAlpha(color, 0.95));
+        grd.addColorStop(0.35, hexWithAlpha(color, 0.35));
+        grd.addColorStop(1, hexWithAlpha(color, 0));
+        ctx.fillStyle = grd;
+        ctx.fillRect(x - haloR, y - haloR, haloR * 2, haloR * 2);
+
+        // Tight bright core
+        ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
+
+        // Hero diffraction spikes on the bigger stars
+        if (r > 1.3 && rng() < cfg.heroChance) {
+          const spikeLen = 8 + rng() * 12;
+          const gradH = ctx.createLinearGradient(x - spikeLen, y, x + spikeLen, y);
+          gradH.addColorStop(0,   hexWithAlpha(color, 0));
+          gradH.addColorStop(0.5, hexWithAlpha(color, 0.95));
+          gradH.addColorStop(1,   hexWithAlpha(color, 0));
+          ctx.strokeStyle = gradH;
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(x - spikeLen, y); ctx.lineTo(x + spikeLen, y);
+          ctx.stroke();
+          const gradV = ctx.createLinearGradient(x, y - spikeLen, x, y + spikeLen);
+          gradV.addColorStop(0,   hexWithAlpha(color, 0));
+          gradV.addColorStop(0.5, hexWithAlpha(color, 0.95));
+          gradV.addColorStop(1,   hexWithAlpha(color, 0));
+          ctx.strokeStyle = gradV;
+          ctx.beginPath();
+          ctx.moveTo(x, y - spikeLen); ctx.lineTo(x, y + spikeLen);
+          ctx.stroke();
+          // Pure-white core overlay
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       ct.refresh();
-    });
+    }
 
-    // nebula layer
-    const ct = this.textures.createCanvas("nebula", 128, 128);
+    // Subtle "deep fog" — very faint blue haze for vertical depth gradient.
+    // Replaces the old nebula so we keep the same tileSprite hook but with
+    // a gentle blue wash consistent with the reference image.
+    const nSize = 512;
+    const ct = this.textures.createCanvas("nebula", nSize, nSize);
     if (ct) {
       const ctx = ct.context;
-      ctx.fillStyle = "rgba(0,0,0,0)";
-      ctx.clearRect(0, 0, 128, 128);
-      const rng = seededRng(42);
-      for (let i = 0; i < 6; i++) {
-        const grd = ctx.createRadialGradient(
-          rng() * 128, rng() * 128, 0,
-          rng() * 128, rng() * 128, 30 + rng() * 40
-        );
-        grd.addColorStop(0, `rgba(${Math.floor(rng()*80)},0,${Math.floor(80+rng()*80)},0.3)`);
+      ctx.clearRect(0, 0, nSize, nSize);
+      const rng = seededRng(137);
+
+      // Gentle blue haze clouds
+      const blues = [[30, 50, 110], [40, 70, 140], [50, 90, 170], [20, 40, 90]];
+      for (let i = 0; i < 10; i++) {
+        const cx = rng() * nSize;
+        const cy = rng() * nSize;
+        const radius = 140 + rng() * 220;
+        const rgb = blues[Math.floor(rng() * blues.length)]!;
+        const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        grd.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${0.10 + rng() * 0.09})`);
+        grd.addColorStop(0.5, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${0.03 + rng() * 0.04})`);
         grd.addColorStop(1, "rgba(0,0,0,0)");
         ctx.fillStyle = grd;
-        ctx.fillRect(0, 0, 128, 128);
+        ctx.fillRect(0, 0, nSize, nSize);
       }
       ct.refresh();
     }
   }
+}
+
+function hexWithAlpha(hex: string, a: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
 }
 
 // ─── simple deterministic RNG ─────────────────────────────────────────────────
@@ -543,7 +909,7 @@ class PlayScene extends Phaser.Scene {
     // starfield background
     this.starSlow = this.add.tileSprite(W / 2, H / 2, W, H, "star-slow").setDepth(0).setScrollFactor(0);
     this.starMid  = this.add.tileSprite(W / 2, H / 2, W, H, "star-mid").setDepth(0).setScrollFactor(0);
-    this.nebula   = this.add.tileSprite(W / 2, H / 2, W, H, "nebula").setDepth(0).setScrollFactor(0).setAlpha(0.25);
+    this.nebula   = this.add.tileSprite(W / 2, H / 2, W, H, "nebula").setDepth(0).setScrollFactor(0).setAlpha(0.55).setBlendMode(Phaser.BlendModes.ADD);
     this.starFast = this.add.tileSprite(W / 2, H / 2, W, H, "star-fast").setDepth(0).setScrollFactor(0);
 
     // groups
@@ -555,19 +921,19 @@ class PlayScene extends Phaser.Scene {
     // player
     this.playerShip = this.physics.add.image(W / 2, H * 0.78, "player-ship");
     this.playerShip.setDepth(10).setCollideWorldBounds(true);
-    (this.playerShip.body as Phaser.Physics.Arcade.Body).setSize(6, 6).setOffset(9, 11);
+    (this.playerShip.body as Phaser.Physics.Arcade.Body).setSize(10, 10).setOffset(19, 23);
     this.targetX = W / 2;
     this.targetY = H * 0.78;
 
-    // thrust emitter
-    this.thrustEmitter = this.add.particles(this.playerShip.x, this.playerShip.y + 12, "thrust-particle", {
-      speed: { min: 30, max: 80 },
+    // thrust emitter (twin nozzles at tail)
+    this.thrustEmitter = this.add.particles(this.playerShip.x, this.playerShip.y + 26, "thrust-particle", {
+      speed: { min: 50, max: 130 },
       angle: { min: 80, max: 100 },
-      scale: { start: 1, end: 0 },
-      alpha: { start: 0.8, end: 0 },
-      lifespan: 300,
-      frequency: 40,
-      quantity: 2,
+      scale: { start: 1.4, end: 0 },
+      alpha: { start: 0.9, end: 0 },
+      lifespan: 380,
+      frequency: 30,
+      quantity: 3,
     }).setDepth(9);
 
     // laser beam graphics
@@ -669,10 +1035,12 @@ class PlayScene extends Phaser.Scene {
     this.noHitStreak += dt / 1000;
 
     // starfield scroll
-    this.starFast.tilePositionY -= 0.15 * dt;
-    this.starMid.tilePositionY  -= 0.06 * dt;
-    this.starSlow.tilePositionY -= 0.02 * dt;
-    this.nebula.tilePositionY   -= 0.015 * dt;
+    this.starFast.tilePositionY -= 0.18 * dt;
+    this.starMid.tilePositionY  -= 0.08 * dt;
+    this.starSlow.tilePositionY -= 0.025 * dt;
+    this.nebula.tilePositionY   -= 0.012 * dt;
+    // twinkle: alpha sine on the fast layer for shimmer
+    this.starFast.alpha = 0.85 + Math.sin(this.gameTime * 3) * 0.1;
 
     // keyboard movement
     const cursors = this.data.get("cursors") as Phaser.Types.Input.Keyboard.CursorKeys | undefined;
@@ -697,11 +1065,11 @@ class PlayScene extends Phaser.Scene {
     this.playerShip.y = Phaser.Math.Linear(this.playerShip.y, this.targetY, lerpFactor);
 
     // clamp
-    this.playerShip.x = Phaser.Math.Clamp(this.playerShip.x, 16, W - 16);
-    this.playerShip.y = Phaser.Math.Clamp(this.playerShip.y, 20, H - 20);
+    this.playerShip.x = Phaser.Math.Clamp(this.playerShip.x, 28, W - 28);
+    this.playerShip.y = Phaser.Math.Clamp(this.playerShip.y, 32, H - 32);
 
-    // thrust emitter follow
-    this.thrustEmitter.setPosition(this.playerShip.x, this.playerShip.y + 14);
+    // thrust emitter follow (behind twin engines)
+    this.thrustEmitter.setPosition(this.playerShip.x, this.playerShip.y + 26);
 
     // invuln blink
     if (this.invulnTimer > 0) {
@@ -790,7 +1158,7 @@ class PlayScene extends Phaser.Scene {
     }
 
     const x = this.playerShip.x;
-    const y = this.playerShip.y - 14;
+    const y = this.playerShip.y - 26;
     const bulletKey = this.weaponBulletKey();
 
     playSfx("shoot");
@@ -824,8 +1192,8 @@ class PlayScene extends Phaser.Scene {
         break;
       }
       case "homing": {
-        const b1 = this.spawnPlayerBullet(x - 8, y, bulletKey);
-        const b2 = this.spawnPlayerBullet(x + 8, y, bulletKey);
+        const b1 = this.spawnPlayerBullet(x - 14, y + 6, bulletKey);
+        const b2 = this.spawnPlayerBullet(x + 14, y + 6, bulletKey);
         if (b1) (b1.body as Phaser.Physics.Arcade.Body).setVelocity(-20, -400);
         if (b2) (b2.body as Phaser.Physics.Arcade.Body).setVelocity(20, -400);
         break;
@@ -888,7 +1256,7 @@ class PlayScene extends Phaser.Scene {
     const g = this.laserBeam;
     g.clear();
     const x = this.playerShip.x;
-    const y = this.playerShip.y - 14;
+    const y = this.playerShip.y - 26;
     // outer glow
     g.lineStyle(6, 0xff44ff, 0.3);
     g.beginPath();
@@ -1643,7 +2011,7 @@ export function mount(container: HTMLElement): () => void {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: wrapper,
-    backgroundColor: "#060318",
+    backgroundColor: "#050b1e",
     scene: [BootScene, PlayScene, UIScene],
     scale: {
       mode: Phaser.Scale.RESIZE,

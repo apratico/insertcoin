@@ -19,7 +19,7 @@ Default stack for the letsgame shell:
 - **HTML5 Canvas 2D** — primary renderer for pixel/sprite-based arcade games (Snake, Tetris, Pac-Man, Space Invaders, Breakout, Asteroids, Frogger).
 - **SVG + DOM** — for grid/board puzzle games where crisp vectors and accessibility matter (2048, Sudoku, Minesweeper, Memory, 15-puzzle, Lights Out, Connect 4). DOM elements are cheap for static grids and give free pointer/touch events.
 - **PixiJS** — when Canvas 2D is too slow (many sprites, particle effects, smooth scrolling). WebGL renderer with a simple scene graph. Use for Bubble Shooter, Match-3 with animations, Doodle Jump.
-- **Phaser 3** — full arcade framework with scene/state management, physics, input, audio baked in. Use for anything that would otherwise require hand-rolling an engine (platformers, complex arcade titles, side-scrollers). Trade-off: ~1MB min gzipped, so avoid for trivial games.
+- **Phaser 4** — full arcade framework with scene/state management, physics, input, audio baked in. Use for anything that would otherwise require hand-rolling an engine (platformers, complex arcade titles, side-scrollers). Trade-off: ~1MB min gzipped, so avoid for trivial games.
 - **Matter.js** — 2D rigid-body physics. Use for Angry Birds-style projectile/destruction games, Cut-the-Rope-style rope physics, pinball.
 - **Howler.js** — cross-browser audio with mobile unlock, sprite sheets for SFX, fallback formats. Default audio layer.
 - **Hammer.js** / native Pointer Events — gesture recognition (swipe, pinch, tap, long-press). Prefer raw Pointer Events when gestures are simple; Hammer when you need gesture combos.
@@ -36,9 +36,17 @@ Optional / per-game picks you should recognize:
 
 Decision rule: **start with plain Canvas 2D + TS**. Upgrade to PixiJS when you see >200 draw calls per frame or particle systems. Reach for Phaser only when scene/physics/input glue would cost more to write than the 1MB import.
 
-# Phaser 3 — deep-dive for InsertCoin
+# Phaser 4 — deep-dive for InsertCoin
 
-Use Phaser 3 for high-sprite-count arcade where Canvas 2D would choke: vertical/horizontal shmups (bullet hell 500+ bullets), platformers with 50+ on-screen entities, particle-heavy action, tilemap-based scrollers. Installed as `phaser` npm dependency (v3.x). Bundle ~700KB gzipped; acceptable because lazy-loaded per game.
+Use Phaser 4 for high-sprite-count arcade where Canvas 2D would choke: vertical/horizontal shmups (bullet hell 500+ bullets), platformers with 50+ on-screen entities, particle-heavy action, tilemap-based scrollers. Installed as `phaser` npm dependency (v4.0.0 "Caladan"). Bundle ~700KB gzipped; acceptable because lazy-loaded per game.
+
+**IMPORTANT — Phaser 4 import syntax**: Phaser 4 dropped the default export. Use:
+```ts
+import * as Phaser from "phaser";
+```
+NOT `import Phaser from "phaser"` (that works only in Phaser 3).
+
+Phaser 4 ("Caladan") API is ~90% backward-compatible with Phaser 3 for game logic. Optional new features worth using when relevant: WebGPU renderer (`type: Phaser.WEBGPU` falls back to WEBGL/CANVAS automatically), improved pointer pool, refactored ScaleManager with cleaner RESIZE mode, shader compute support. Default `type: Phaser.AUTO` still resolves to WebGL on virtually all modern browsers — pick WEBGPU explicitly only if the game benefits from compute shaders.
 
 ## Integration with insertcoin shell
 
@@ -173,13 +181,13 @@ Only reach for these when Phaser isn't enough or when the user explicitly reques
 
 Decision rule for new games in 2026:
 1. Pure puzzle / grid / tiny action → Canvas 2D + TS (current stack).
-2. Action with 50+ simultaneous sprites, bullet hell, platformer, shmup → **Phaser 3**.
+2. Action with 50+ simultaneous sprites, bullet hell, platformer, shmup → **Phaser 4**.
 3. Physics sandbox, particle soup >2000 entities, CPU-bound simulation → Rust + macroquad/WASM.
 4. Editor-driven asset-heavy game → Godot 4 HTML5.
 
 # Vertical shmup genre — specifics
 
-Classic genre (Raiden, Dragon Blaze, Touhou, Cave shooters). Portrait-first. Phaser 3 is the natural fit.
+Classic genre (Raiden, Dragon Blaze, Touhou, Cave shooters). Portrait-first. Phaser 4 is the natural fit.
 
 Must-haves:
 - Parallax starfield (2-3 layers, WebGL TileSprite or quad offset).
@@ -201,7 +209,7 @@ Common patterns for bullet hell:
 - `spiral(n, period)` — continuous bullet emission rotating around origin.
 - `wall(count, gap)` — horizontal wall with a gap to dodge through.
 
-Target on mobile: 300-500 active bullets + 30 enemies + 200 particles at 60fps = well within Phaser 3's WebGL capabilities.
+Target on mobile: 300-500 active bullets + 30 enemies + 200 particles at 60fps = well within Phaser 4's WebGL capabilities.
 
 # Mobile-first constraints — non-negotiable
 
