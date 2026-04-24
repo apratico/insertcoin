@@ -2328,9 +2328,9 @@ class PlayScene extends Phaser.Scene {
   private gameOver(): void {
     if (this.dead) return;
     this.dead = true;
-    this.thrustEmitter.stop();
-    // stop emitting bullets/enemies: disable group children velocities so
-    // they don't keep drifting / cause further collisions
+
+    try { this.thrustEmitter?.stop(); } catch { /* ok */ }
+    // zero velocities on active hazards so nothing keeps moving / colliding
     this.enemyBullets.getChildren().forEach((o) => {
       const b = o as Phaser.Physics.Arcade.Image;
       if (b.active && b.body) (b.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
@@ -2339,17 +2339,22 @@ class PlayScene extends Phaser.Scene {
       const e = o as Phaser.Physics.Arcade.Image;
       if (e.active && e.body) (e.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     });
+
     playSfx("gameover");
     if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
-    this.cameras.main.shake(500, 0.02);
+    this.cameras.main.shake(420, 0.02);
     this.spawnExplosion(this.playerShip.x, this.playerShip.y, true);
     this.playerShip.setVisible(false);
     void submit(GAME_ID, this.score);
-    // Use Phaser's time.delayedCall so overlay always appears — setTimeout
-    // can get desynced across scene transitions.
-    this.time.delayedCall(900, () => {
-      this.registry.set("gameover", true);
-    });
+
+    // Pause physics so no further collisions fire while overlay shows.
+    this.physics.pause();
+
+    // Show overlay immediately. Emitting an explicit event on UI scene is
+    // more reliable than setting a registry key (changedata won't fire if
+    // the value already matched, and it can race with scene lifecycle).
+    const ui = this.scene.get("UI");
+    ui.events.emit("star-void:gameover", this.score);
   }
 }
 
@@ -2488,8 +2493,20 @@ class UIScene extends Phaser.Scene {
     const goBtnLbl = this.add.text(0, 60, "PLAY AGAIN", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff", fontStyle: "bold" }).setOrigin(0.5);
     this.gameoverOverlay.add([goBg, goTitle, goScoreLbl, goScore, goBtn, goBtnLbl]);
 
+    const showGameOver = (score: number) => {
+      goScore.setText(String(score));
+      this.gameoverOverlay.setVisible(true).setAlpha(0).setScale(0.85);
+      this.tweens.add({
+        targets: this.gameoverOverlay,
+        alpha: 1,
+        scale: 1,
+        duration: 320,
+        ease: "Back.easeOut",
+      });
+    };
+
     const restart = () => {
-      this.registry.set("gameover", false);
+      this.gameoverOverlay.setVisible(false);
       this.registry.set("score", 0);
       this.registry.set("lives", 3);
       this.registry.set("bombs", 3);
@@ -2498,15 +2515,21 @@ class UIScene extends Phaser.Scene {
       this.registry.set("weapon", "BASIC L1");
       this.registry.set("boss-hp", 0);
       this.registry.set("boss-max-hp", 0);
-      this.gameoverOverlay.setVisible(false);
-      this.scene.stop("Play");
-      this.scene.start("Play");
+      // Phaser 4: scene.restart performs a clean stop + init + create cycle.
+      this.scene.get("Play").scene.restart();
     };
     goBtn.on("pointerup", restart);
-    // Fallback: any tap while overlay visible triggers restart
-    // (guards against Phaser 4 hit-test quirks on mobile/WebGPU).
-    this.input.on("pointerup", () => {
+    goBtn.on("pointerdown", restart);
+    // Fallback: any tap while overlay visible triggers restart (guards
+    // against Phaser 4 hit-test quirks on mobile/WebGPU).
+    this.input.on("pointerdown", () => {
       if (this.gameoverOverlay.visible) restart();
+    });
+
+    // Play scene → UI scene direct event (emit via UI's own event bus so
+    // it survives Play scene restarts).
+    this.events.on("star-void:gameover", (score: number) => {
+      showGameOver(score);
     });
 
     // listen to registry
@@ -2576,14 +2599,9 @@ class UIScene extends Phaser.Scene {
         } catch {}
         break;
       }
-      case "gameover":
-        if (value === true) {
-          const sc = this.registry.get("score") as number;
-          goScore.setText(String(sc));
-          this.gameoverOverlay.setVisible(true);
-        }
-        break;
+      // gameover handled via direct scene event (see create())
     }
+    void goScore;
   }
 
   private drawBossBar(): void {
