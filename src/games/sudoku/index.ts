@@ -181,10 +181,30 @@ function deepCopyBoard(b: Board): Board {
   return b.map((row) => [...row]);
 }
 
+// Count solutions up to `limit`. Stops early when limit is reached.
+// Used to verify the puzzle has a unique solution after each cell removal.
+function countSolutions(board: Board, limit: number): number {
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      if (board[r]![c] !== 0) continue;
+      let count = 0;
+      for (let n = 1; n <= 9; n++) {
+        if (isValidPlacement(board, r, c, n)) {
+          board[r]![c] = n;
+          count += countSolutions(board, limit - count);
+          board[r]![c] = 0;
+          if (count >= limit) return count;
+        }
+      }
+      return count;
+    }
+  }
+  return 1; // board is complete
+}
+
 function generatePuzzle(difficulty: Difficulty): { puzzle: Board; solution: Board } {
   // Build a complete valid solution
   const solution = emptyBoard();
-  // Seed a few random cells to get variety
   const seedPositions: [number, number][] = [
     [0, 0], [4, 4], [8, 8], [2, 6], [6, 2],
   ];
@@ -194,24 +214,31 @@ function generatePuzzle(difficulty: Difficulty): { puzzle: Board; solution: Boar
   }
   solveFill(solution);
 
-  // Remove cells to reach target given count
+  // Remove cells one at a time, but only when removal keeps the
+  // puzzle uniquely solvable. Reaching target given count is a goal,
+  // not a guarantee — if uniqueness forces us to stop earlier the
+  // puzzle will simply have more clues than requested.
   const puzzle = deepCopyBoard(solution);
   const targetGiven = GIVEN_COUNT[difficulty];
-  const positions = shuffle(
-    Array.from({ length: 81 }, (_, i) => i)
-  );
+  const positions = shuffle(Array.from({ length: 81 }, (_, i) => i));
   let givenLeft = 81;
+
   for (const idx of positions) {
     if (givenLeft <= targetGiven) break;
     const r = Math.floor(idx / 9);
     const c = idx % 9;
+    const saved = puzzle[r]![c];
     puzzle[r]![c] = 0;
-    givenLeft--;
+    // check uniqueness on a throwaway copy (countSolutions mutates)
+    const test = deepCopyBoard(puzzle);
+    const n = countSolutions(test, 2);
+    if (n !== 1) {
+      // removing this cell admits a second solution → restore
+      puzzle[r]![c] = saved;
+    } else {
+      givenLeft--;
+    }
   }
-
-  // Note: uniqueness of solution is NOT guaranteed (MVP trade-off).
-  // A secondary solve pass to verify uniqueness would add ~50+ lines;
-  // skipped per spec. The puzzle may accept multiple solutions.
 
   return { puzzle, solution };
 }
