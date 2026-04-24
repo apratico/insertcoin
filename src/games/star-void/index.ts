@@ -1395,12 +1395,21 @@ class PlayScene extends Phaser.Scene {
       }
     }
 
-    // player lerp to target
-    // Tier 2+: faster lerp. Focus mode SLOW precision (×0.3).
-    let lerpFactor = 0.25 + this.upgradeTier * 0.05;
-    if (this.focusActive) lerpFactor *= 0.3;
-    this.playerShip.x = Phaser.Math.Linear(this.playerShip.x, this.targetX, lerpFactor);
-    this.playerShip.y = Phaser.Math.Linear(this.playerShip.y, this.targetY, lerpFactor);
+    // Player movement: velocity-capped follow of target (finger position).
+    // Base cap is high enough to feel instant; focus cap is LOW so the
+    // slowdown is unmistakable regardless of how fast the finger drags.
+    const dx = this.targetX - this.playerShip.x;
+    const dy = this.targetY - this.playerShip.y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > 0.25) {
+      const dist = Math.sqrt(distSq);
+      const baseCap = 900 + this.upgradeTier * 80;  // ~900-1220 px/s
+      const focusCap = 110;                          // very slow precision
+      const cap = this.focusActive ? focusCap : baseCap;
+      const step = Math.min(dist, (cap * dt) / 1000);
+      this.playerShip.x += (dx / dist) * step;
+      this.playerShip.y += (dy / dist) * step;
+    }
 
     // clamp
     this.playerShip.x = Phaser.Math.Clamp(this.playerShip.x, 28, W - 28);
@@ -2214,6 +2223,8 @@ class PlayScene extends Phaser.Scene {
     enemy.setTint(0xff4444);
     this.time.delayedCall(80, () => { if (enemy.active) enemy.clearTint(); });
 
+    this.showDamagePopup(enemy.x, enemy.y - 12, dmg);
+
     const now = performance.now();
 
     if (hp <= 0) {
@@ -2240,6 +2251,7 @@ class PlayScene extends Phaser.Scene {
   private hitBoss(dmg: number): void {
     this.bossHP = Math.max(0, this.bossHP - dmg);
     this.registry.set("boss-hp", this.bossHP);
+    if (this.bossRef) this.showDamagePopup(this.bossRef.x, this.bossRef.y - 18, dmg);
 
     const now = performance.now();
     if (now - this.lastBossDmgVibrate > 100) {
@@ -2467,6 +2479,27 @@ class PlayScene extends Phaser.Scene {
     this.registry.set("wave", this.waveNumber);
     this.registry.set("round", this.currentRound);
     this.registry.set("weapon", `${this.weaponType.toUpperCase()} L${this.weaponLevel}`);
+  }
+
+  private showDamagePopup(x: number, y: number, dmg: number): void {
+    const color = this.focusActive ? "#ffee22" : "#ffffff";
+    const size  = Math.min(20, 11 + dmg * 1.2);
+    const txt = this.add.text(x, y, `-${dmg}`, {
+      fontFamily: "monospace",
+      fontSize: `${size}px`,
+      color,
+      fontStyle: "bold",
+      stroke: "#000",
+      strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(14);
+    this.tweens.add({
+      targets: txt,
+      y: y - 28,
+      alpha: { from: 1, to: 0 },
+      duration: 600,
+      ease: "Cubic.easeOut",
+      onComplete: () => txt.destroy(),
+    });
   }
 
   private spawnExplosion(x: number, y: number, big = false): void {
