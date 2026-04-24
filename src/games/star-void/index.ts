@@ -1137,6 +1137,9 @@ class PlayScene extends Phaser.Scene {
   private upgradeTier = 0;
   private readonly upgradeMilestones = [3000, 8000, 20000, 45000];
 
+  // focus mode: hold FOCUS button → slower move + bigger bullets + more damage
+  private focusActive = false;
+
   // drag input
   private pointerDown = false;
   private targetX = 0;
@@ -1279,6 +1282,8 @@ class PlayScene extends Phaser.Scene {
 
     // listen for bomb from UI scene
     this.events.on("bomb", () => { this.fireBomb(); });
+    this.events.on("focus-on",  () => { this.focusActive = true; });
+    this.events.on("focus-off", () => { this.focusActive = false; });
 
     // hint dismiss
     const hint = document.getElementById("sv-hint");
@@ -1352,8 +1357,9 @@ class PlayScene extends Phaser.Scene {
     }
 
     // player lerp to target
-    // Tier 2+: faster lerp toward target (more responsive)
-    const lerpFactor = 0.25 + this.upgradeTier * 0.05;
+    // Tier 2+: faster lerp. Focus mode halves responsiveness for precision.
+    let lerpFactor = 0.25 + this.upgradeTier * 0.05;
+    if (this.focusActive) lerpFactor *= 0.45;
     this.playerShip.x = Phaser.Math.Linear(this.playerShip.x, this.targetX, lerpFactor);
     this.playerShip.y = Phaser.Math.Linear(this.playerShip.y, this.targetY, lerpFactor);
 
@@ -1438,8 +1444,9 @@ class PlayScene extends Phaser.Scene {
 
   private autoFire(): void {
     const rpmTable: Record<WeaponLevel, number> = { 1: 300, 2: 280, 3: 250, 4: 600, 5: 240 };
-    // upgrade tier: +15% RPM per tier
-    const rpm = rpmTable[this.weaponLevel] * (1 + this.upgradeTier * 0.15);
+    // upgrade tier: +15% RPM per tier, focus: +20% RPM
+    let rpm = rpmTable[this.weaponLevel] * (1 + this.upgradeTier * 0.15);
+    if (this.focusActive) rpm *= 1.2;
     const intervalMs = 60000 / rpm;
     this.fireTimer = intervalMs;
 
@@ -1544,9 +1551,10 @@ class PlayScene extends Phaser.Scene {
     // L1 = 1×/1dmg, L2 = 1.3×/2dmg, L3 = 1.6×/3dmg, L4 = 1.9×/5dmg, L5 = 2.3×/7dmg.
     const sizeMap: Record<WeaponLevel, number> = { 1: 1.0, 2: 1.3, 3: 1.6, 4: 1.9, 5: 2.3 };
     const dmgMap:  Record<WeaponLevel, number> = { 1: 1,   2: 2,   3: 3,   4: 5,   5: 7 };
-    const scale = sizeMap[this.weaponLevel];
-    b.setScale(scale);
-    b.setData("dmg", dmgMap[this.weaponLevel]);
+    const focusScaleBonus = this.focusActive ? 1.3 : 1;
+    const focusDmgBonus   = this.focusActive ? 1.5 : 1;
+    b.setScale(sizeMap[this.weaponLevel] * focusScaleBonus);
+    b.setData("dmg", Math.ceil(dmgMap[this.weaponLevel] * focusDmgBonus));
     const body = b.body as Phaser.Physics.Arcade.Body;
     body.reset(x, y);
     body.setAllowGravity(false);
@@ -2415,6 +2423,8 @@ class UIScene extends Phaser.Scene {
   private bombBtnCount!: Phaser.GameObjects.Text;
   private bombBtnIconGfx!: Phaser.GameObjects.Graphics;
   private bombBtnPulse = 0;
+  private focusBtn!: Phaser.GameObjects.Container;
+  private focusBtnHit!: Phaser.GameObjects.Arc;
   private bossBar!: Phaser.GameObjects.Graphics;
   private gameoverOverlay!: Phaser.GameObjects.Container;
   private banner!: Phaser.GameObjects.Container;
@@ -2508,6 +2518,46 @@ class UIScene extends Phaser.Scene {
       ease: "Sine.easeInOut",
     });
     void this.bombBtnPulse; // kept for future use
+
+    // FOCUS button — hold to slow-move + bigger bullets + more damage
+    const fbX = W - 110, fbY = H - 52;
+    this.focusBtn = this.add.container(fbX, fbY).setDepth(55);
+    const fbGlow  = this.add.circle(0, 0, 34, 0x22ddff, 0.22);
+    const fbOuter = this.add.circle(0, 0, 28, 0x001833, 1);
+    const fbInner = this.add.circle(0, 0, 24, 0x0088cc, 1);
+    const fbRim   = this.add.circle(0, 0, 24, 0x000000, 0).setStrokeStyle(2, 0x88eaff, 0.9);
+    // crosshair icon
+    const fbIcon = this.add.graphics();
+    fbIcon.lineStyle(2, 0xffffff, 1);
+    fbIcon.strokeCircle(0, 0, 10);
+    fbIcon.beginPath();
+    fbIcon.moveTo(-14, 0); fbIcon.lineTo(-6, 0);
+    fbIcon.moveTo(6, 0);   fbIcon.lineTo(14, 0);
+    fbIcon.moveTo(0, -14); fbIcon.lineTo(0, -6);
+    fbIcon.moveTo(0, 6);   fbIcon.lineTo(0, 14);
+    fbIcon.strokePath();
+    fbIcon.fillStyle(0xff3366, 1);
+    fbIcon.fillCircle(0, 0, 2);
+    const fbLbl = this.add.text(0, 22, "FOCUS", {
+      fontFamily: "monospace", fontSize: "9px", color: "#88eaff", fontStyle: "bold",
+    }).setOrigin(0.5);
+    this.focusBtn.add([fbGlow, fbOuter, fbInner, fbRim, fbIcon, fbLbl]);
+
+    this.focusBtnHit = this.add.circle(fbX, fbY, 32, 0x000000, 0).setDepth(56).setInteractive({ useHandCursor: true });
+    const play = this.scene.get("Play") as PlayScene;
+    const setFocus = (on: boolean) => {
+      play.events.emit(on ? "focus-on" : "focus-off");
+      this.tweens.killTweensOf(this.focusBtn);
+      this.tweens.add({
+        targets: this.focusBtn,
+        scale: on ? 1.1 : 1,
+        duration: 120,
+      });
+      fbInner.setFillStyle(on ? 0x22eeff : 0x0088cc);
+    };
+    this.focusBtnHit.on("pointerdown", () => setFocus(true));
+    this.focusBtnHit.on("pointerup",   () => setFocus(false));
+    this.focusBtnHit.on("pointerout",  () => setFocus(false));
 
     // boss health bar
     this.bossBar = this.add.graphics().setDepth(52);
@@ -2673,6 +2723,8 @@ class UIScene extends Phaser.Scene {
     this.bombsText.setX(W - 8);
     this.bombBtn.setPosition(W - 46, H - 52);
     this.bombBtnHit.setPosition(W - 46, H - 52);
+    this.focusBtn.setPosition(W - 110, H - 52);
+    this.focusBtnHit.setPosition(W - 110, H - 52);
     this.gameoverOverlay.setPosition(W / 2, H / 2);
     this.banner.setPosition(W / 2, H * 0.35);
   }
