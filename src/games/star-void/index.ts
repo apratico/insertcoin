@@ -943,14 +943,12 @@ class BootScene extends Phaser.Scene {
       const ctx = ct.context;
       ctx.clearRect(0, 0, cfg.size, cfg.size);
       const rng = seededRng(cfg.seed);
+      const S = cfg.size;
 
-      for (let i = 0; i < cfg.count; i++) {
-        const x = rng() * cfg.size;
-        const y = rng() * cfg.size;
-        const color = cfg.colors[Math.floor(rng() * cfg.colors.length)]!;
-        const r = cfg.minR + rng() * (cfg.maxR - cfg.minR);
-
-        // Halo bloom (subtle, smaller on bigger stars to avoid visual noise)
+      // Draw each star up to 9× (center + 8 wraps) so the texture tiles
+      // seamlessly across the tileSprite — no visible horizontal/vertical
+      // seam when tilePositionY wraps past size.
+      const drawStar = (x: number, y: number, r: number, color: string, hero: boolean, spikeLen: number) => {
         const haloR = r * 3;
         const grd = ctx.createRadialGradient(x, y, 0, x, y, haloR);
         grd.addColorStop(0, hexWithAlpha(color, 0.7));
@@ -958,16 +956,11 @@ class BootScene extends Phaser.Scene {
         grd.addColorStop(1, hexWithAlpha(color, 0));
         ctx.fillStyle = grd;
         ctx.fillRect(x - haloR, y - haloR, haloR * 2, haloR * 2);
-
-        // Tight bright core
         ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
-
-        // Hero diffraction spikes on the bigger stars
-        if (r > 0.9 && rng() < cfg.heroChance) {
-          const spikeLen = 4 + rng() * 5;
+        if (hero) {
           const gradH = ctx.createLinearGradient(x - spikeLen, y, x + spikeLen, y);
           gradH.addColorStop(0,   hexWithAlpha(color, 0));
           gradH.addColorStop(0.5, hexWithAlpha(color, 0.95));
@@ -985,12 +978,35 @@ class BootScene extends Phaser.Scene {
           ctx.beginPath();
           ctx.moveTo(x, y - spikeLen); ctx.lineTo(x, y + spikeLen);
           ctx.stroke();
-          // Pure-white core overlay
           ctx.fillStyle = "#ffffff";
           ctx.beginPath();
           ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
           ctx.fill();
         }
+      };
+
+      for (let i = 0; i < cfg.count; i++) {
+        const x = rng() * S;
+        const y = rng() * S;
+        const color = cfg.colors[Math.floor(rng() * cfg.colors.length)]!;
+        const r = cfg.minR + rng() * (cfg.maxR - cfg.minR);
+        const hero = r > 0.9 && rng() < cfg.heroChance;
+        const spikeLen = 4 + rng() * 5;
+
+        // Only wrap stars whose bloom would extend past the edge to save fills.
+        const reach = Math.max(r * 3, hero ? spikeLen : 0) + 1;
+        const nearL = x < reach, nearR = x > S - reach;
+        const nearT = y < reach, nearB = y > S - reach;
+
+        drawStar(x, y, r, color, hero, spikeLen);
+        if (nearL) drawStar(x + S, y, r, color, hero, spikeLen);
+        if (nearR) drawStar(x - S, y, r, color, hero, spikeLen);
+        if (nearT) drawStar(x, y + S, r, color, hero, spikeLen);
+        if (nearB) drawStar(x, y - S, r, color, hero, spikeLen);
+        if (nearL && nearT) drawStar(x + S, y + S, r, color, hero, spikeLen);
+        if (nearR && nearT) drawStar(x - S, y + S, r, color, hero, spikeLen);
+        if (nearL && nearB) drawStar(x + S, y - S, r, color, hero, spikeLen);
+        if (nearR && nearB) drawStar(x - S, y - S, r, color, hero, spikeLen);
       }
       ct.refresh();
     }
@@ -1005,19 +1021,29 @@ class BootScene extends Phaser.Scene {
       ctx.clearRect(0, 0, nSize, nSize);
       const rng = seededRng(137);
 
-      // Gentle blue haze clouds
+      // Gentle blue haze clouds — each drawn with 9 wraps so tiled edges blend
       const blues = [[30, 50, 110], [40, 70, 140], [50, 90, 170], [20, 40, 90]];
-      for (let i = 0; i < 10; i++) {
-        const cx = rng() * nSize;
-        const cy = rng() * nSize;
-        const radius = 140 + rng() * 220;
-        const rgb = blues[Math.floor(rng() * blues.length)]!;
+      const S = nSize;
+      const drawBlob = (cx: number, cy: number, radius: number, rgb: number[], a0: number, a1: number) => {
         const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-        grd.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${0.10 + rng() * 0.09})`);
-        grd.addColorStop(0.5, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${0.03 + rng() * 0.04})`);
+        grd.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a0})`);
+        grd.addColorStop(0.5, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a1})`);
         grd.addColorStop(1, "rgba(0,0,0,0)");
         ctx.fillStyle = grd;
-        ctx.fillRect(0, 0, nSize, nSize);
+        ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+      };
+      for (let i = 0; i < 10; i++) {
+        const cx = rng() * S;
+        const cy = rng() * S;
+        const radius = 140 + rng() * 220;
+        const rgb = blues[Math.floor(rng() * blues.length)]!;
+        const a0 = 0.10 + rng() * 0.09;
+        const a1 = 0.03 + rng() * 0.04;
+        for (const dx of [-S, 0, S]) {
+          for (const dy of [-S, 0, S]) {
+            drawBlob(cx + dx, cy + dy, radius, rgb, a0, a1);
+          }
+        }
       }
       ct.refresh();
     }
