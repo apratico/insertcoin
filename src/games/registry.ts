@@ -223,15 +223,15 @@ export const GAMES: GameEntry[] = [
     load: () => import("./drop-stack/index.js"),
   },
   {
-    id: "liquid-merge",
-    title: "Liquid Merge",
-    tagline: "Mescola. Cresci. POP!",
-    palette: { bg: "#131526", fg: "#ffffff", accent: "#ff66ff" },
+    id: "pinball",
+    title: "Neon Flipper",
+    tagline: "Flipper classico arcade.",
+    palette: { bg: "#1a0220", fg: "#ffffff", accent: "#ff3388" },
     category: "solo",
     modes: ["solo"],
     status: "ready",
     orientation: "portrait",
-    load: () => import("./liquid-merge/index.js"),
+    load: () => import("./pinball/index.js"),
   },
 
   // =========================================================

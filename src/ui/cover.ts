@@ -972,7 +972,7 @@ function artBody(entry: GameEntry): string {
       case "block-fit": return blockFitArt(id);
       case "star-void": return starVoidArt(id);
       case "drop-stack": return dropStackArt(id);
-      case "liquid-merge": return liquidMergeArt(id);
+      case "pinball": return pinballArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1636,33 +1636,55 @@ function defaultArt(id: string, accent: string): string {
   return `<rect x="20" y="20" width="120" height="60" rx="8" fill="${accent}" fill-opacity="0.3" filter="url(#glow-${id})"/>`;
 }
 
-function liquidMergeArt(id: string): string {
-  const bg = `<rect width="160" height="100" fill="#131526"/>`;
-  // jar
-  const jar = `<rect x="40" y="22" width="80" height="70" fill="rgba(40,60,100,0.12)" stroke="#2a3450" stroke-width="1.5"/>`;
-  // blobs mixed colors (red, yellow, blue, mix purple/orange/green)
-  const blob = (cx: number, cy: number, r: number, c: string, s: string) => `
-    <ellipse cx="${cx}" cy="${cy + r * 0.8}" rx="${r * 0.7}" ry="${r * 0.15}" fill="rgba(0,0,0,0.25)"/>
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}" stroke="${s}" stroke-width="0.6"/>
-    <ellipse cx="${cx - r * 0.35}" cy="${cy - r * 0.4}" rx="${r * 0.25}" ry="${r * 0.14}" fill="rgba(255,255,255,0.5)" transform="rotate(-30 ${cx - r * 0.35} ${cy - r * 0.4})"/>
+function pinballArt(id: string): string {
+  const bg = `<rect width="160" height="100" fill="#1a0220"/>`;
+  // velvet playfield
+  const field = `<rect x="38" y="6" width="84" height="88" fill="#2a0840" rx="4"/>`;
+  // side chrome walls
+  const walls = `
+    <rect x="38" y="6" width="3" height="88" fill="#bbb"/>
+    <rect x="119" y="6" width="3" height="88" fill="#bbb"/>
+    <rect x="38" y="6" width="84" height="3" fill="#bbb"/>
   `;
-  const stack = [
-    blob(55, 82, 9, "#ff3c50", "#991824"),
-    blob(75, 82, 11, "#ffe033", "#a89200"),
-    blob(95, 82, 10, "#3c78ff", "#1a3da0"),
-    blob(110, 82, 7, "#46d264", "#188a2c"),
-    blob(72, 62, 14, "#ff7830", "#c04400"),  // orange (R+Y mix)
-    blob(98, 60, 15, "#7a40ff", "#3a0080"),  // purple (R+B mix)
-    blob(84, 38, 20, "#88cc66", "#44661a"),  // big green
+  // bumpers
+  const bumper = (cx: number, cy: number, c: string) => `
+    <circle cx="${cx}" cy="${cy}" r="8" fill="#111"/>
+    <circle cx="${cx}" cy="${cy}" r="6" fill="${c}"/>
+    <circle cx="${cx - 2}" cy="${cy - 2}" r="2" fill="rgba(255,255,255,0.7)"/>
+  `;
+  const bumpers = [
+    bumper(58, 24, "#ff3355"),
+    bumper(80, 18, "#33c0ff"),
+    bumper(102, 24, "#ffcc33"),
   ].join("\n  ");
-  // drop incoming
-  const dropping = blob(80, 14, 8, "#ff66ff", "#8811aa");
-  const traj = `<line x1="80" y1="22" x2="80" y2="28" stroke="#ffffff" stroke-opacity="0.4" stroke-dasharray="2,2"/>`;
-  // splash ring around biggest blob (mix happening)
-  const splash = `
-    <circle cx="84" cy="38" r="24" fill="none" stroke="#ffee55" stroke-width="0.6" stroke-opacity="0.6" filter="url(#glow-${id})"/>
+  // drop targets row
+  const targets: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const tx = 50 + i * 12;
+    targets.push(`<rect x="${tx}" y="44" width="10" height="4" fill="#ffaa33" stroke="#884400" stroke-width="0.4"/>`);
+  }
+  // slingshots
+  const slings = `
+    <polygon points="56,66 64,72 52,72" fill="#00aaff" stroke="#004466" stroke-width="0.6"/>
+    <polygon points="104,66 108,72 96,72" fill="#00aaff" stroke="#004466" stroke-width="0.6"/>
   `;
-  return bg + "\n  " + jar + "\n  " + splash + "\n  " + stack + "\n  " + traj + "\n  " + dropping;
+  // flippers
+  const flippers = `
+    <rect x="62" y="78" width="18" height="3" fill="#ddd" transform="rotate(28 62 79.5)"/>
+    <rect x="80" y="78" width="18" height="3" fill="#ddd" transform="rotate(-28 98 79.5)"/>
+  `;
+  // ball
+  const ball = `
+    <circle cx="72" cy="52" r="3" fill="url(#glow-${id})"/>
+    <circle cx="72" cy="52" r="3" fill="#fff"/>
+    <circle cx="71" cy="51" r="1" fill="#fff"/>
+  `;
+  // LED score stripe
+  const led = `
+    <rect x="42" y="10" width="76" height="8" fill="#100005"/>
+    <text x="44" y="17" fill="#ff3366" font-family="monospace" font-weight="bold" font-size="7" filter="url(#glow-${id})">01234567</text>
+  `;
+  return bg + "\n  " + field + "\n  " + led + "\n  " + walls + "\n  " + bumpers + "\n  " + targets.join("\n  ") + "\n  " + slings + "\n  " + flippers + "\n  " + ball;
 }
 
 function dropStackArt(id: string): string {
