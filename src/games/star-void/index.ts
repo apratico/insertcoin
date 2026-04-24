@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import { submit } from "../../lib/leaderboard.js";
 import { playSfx } from "../../lib/audio.js";
 
