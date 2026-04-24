@@ -1322,6 +1322,7 @@ class PlayScene extends Phaser.Scene {
     this.events.on("bomb", () => { this.fireBomb(); });
     this.events.on("focus-on",  () => { this.setFocusState(true);  });
     this.events.on("focus-off", () => { this.setFocusState(false); });
+    this.events.on("star-void:restart", () => { this.softReset(); });
 
     // hint dismiss
     const hint = document.getElementById("sv-hint");
@@ -2490,6 +2491,81 @@ class PlayScene extends Phaser.Scene {
     (p.body as Phaser.Physics.Arcade.StaticBody).reset(x, y);
   }
 
+  private softReset(): void {
+    // Clear everything in-scene. No scene lifecycle, no fresh create(),
+    // no texture reload. Works reliably across Phaser 4 builds.
+    const W = this.scale.width;
+    const H = this.scale.height;
+
+    // clear all active game objects in groups (preserves pool)
+    this.enemyGroup.getChildren().forEach((o) => {
+      const e = o as Phaser.Physics.Arcade.Image;
+      e.setActive(false).setVisible(false);
+      e.clearTint();
+      if (e.body) (e.body as Phaser.Physics.Arcade.Body).reset(-200, -200);
+    });
+    this.enemyBullets.getChildren().forEach((o) => {
+      const b = o as Phaser.Physics.Arcade.Image;
+      b.setActive(false).setVisible(false);
+      if (b.body) (b.body as Phaser.Physics.Arcade.Body).reset(-200, -200);
+    });
+    this.playerBullets.getChildren().forEach((o) => {
+      const b = o as Phaser.Physics.Arcade.Image;
+      b.setActive(false).setVisible(false);
+      if (b.body) (b.body as Phaser.Physics.Arcade.Body).reset(-200, -200);
+    });
+    this.pickupGroup.clear(true, true);
+
+    // reset player
+    this.playerShip.setPosition(W / 2, H * 0.78);
+    this.playerShip.setVisible(true).setAlpha(1).clearTint();
+    (this.playerShip.body as Phaser.Physics.Arcade.Body).reset(W / 2, H * 0.78);
+    this.targetX = W / 2;
+    this.targetY = H * 0.78;
+
+    // reset state
+    this.playerLives = 3;
+    this.playerBombs = 3;
+    this.weaponLevel = 1;
+    this.weaponType = "basic";
+    this.invulnTimer = 0;
+    this.score = 0;
+    this.waveIndex = 0;
+    this.gameTime = 0;
+    this.noHitStreak = 0;
+    this.waveNumber = 1;
+    this.currentRound = 1;
+    this.upgradeTier = 0;
+    this.dead = false;
+    this.loopPass = 0;
+    this.fireTimer = 0;
+    this.laserTimer = 0;
+    this.bossAlive = false;
+    this.bossPhase = 0;
+    this.bossPhaseTimer = 0;
+    this.bossSpiralAngle = 0;
+    this.bossRef = null;
+    this.bossHP = 0;
+    this.bossMaxHP = 0;
+
+    // focus off
+    this.setFocusState(false);
+
+    // resume thrust + physics
+    try { this.thrustEmitter.start(); } catch { /* ok */ }
+    this.physics.resume();
+
+    // sync HUD + opening banner
+    this.syncHUD();
+    const r1 = ROUNDS[0]!;
+    this.registry.set("round-banner", JSON.stringify({
+      text: `R1 · ${r1.name}`,
+      sub: "survive to boss",
+      color: r1.color,
+      ts: Date.now(),
+    }));
+  }
+
   private gameOver(): void {
     if (this.dead) return;
     this.dead = true;
@@ -2736,14 +2812,13 @@ class UIScene extends Phaser.Scene {
       this.registry.set("weapon", "BASIC L1");
       this.registry.set("boss-hp", 0);
       this.registry.set("boss-max-hp", 0);
-      // Hard reset: stop Play (drops all its listeners + physics world),
-      // start fresh. scene.restart proved flaky across Phaser 4 builds.
-      const sm = this.scene;
-      sm.stop("Play");
-      this.time.delayedCall(30, () => {
-        sm.start("Play");
-        restarting = false;
-      });
+      // In-scene soft reset: Play scene stays running (no scene lifecycle
+      // restart which was flaky in Phaser 4). Play handles clearing all
+      // groups + resetting player + resuming physics in response to this
+      // event, which is reliable.
+      const play = this.scene.get("Play");
+      play.events.emit("star-void:restart");
+      this.time.delayedCall(50, () => { restarting = false; });
     };
     goBtn.on("pointerdown", restart);
     // Fallback: any tap while overlay visible triggers restart (guards
