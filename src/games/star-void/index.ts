@@ -1137,8 +1137,9 @@ class PlayScene extends Phaser.Scene {
   private upgradeTier = 0;
   private readonly upgradeMilestones = [3000, 8000, 20000, 45000];
 
-  // focus mode: hold FOCUS button → slower move + bigger bullets + more damage
+  // focus mode: toggle FOCUS → slower move + bigger bullets + more damage
   private focusActive = false;
+  private focusHalo: Phaser.GameObjects.Arc | null = null;
 
   // drag input
   private pointerDown = false;
@@ -1187,6 +1188,39 @@ class PlayScene extends Phaser.Scene {
   constructor() { super({ key: "Play" }); }
 
   create(): void {
+    // Reset all mutable state — class field defaults only run at construction,
+    // NOT on scene.start after scene.stop. Without this, dead=true / 0 lives /
+    // upgrade tier etc. leak between runs and the restarted game is broken.
+    this.playerLives = 3;
+    this.playerBombs = 3;
+    this.weaponLevel = 1;
+    this.weaponType = "basic";
+    this.invulnTimer = 0;
+    this.score = 0;
+    this.waveIndex = 0;
+    this.gameTime = 0;
+    this.noHitStreak = 0;
+    this.waveNumber = 1;
+    this.currentRound = 1;
+    this.dead = false;
+    this.loopPass = 0;
+    this.upgradeTier = 0;
+    this.focusActive = false;
+    this.focusHalo = null;
+    this.pointerDown = false;
+    this.fireTimer = 0;
+    this.laserTimer = 0;
+    this.bossAlive = false;
+    this.bossPhase = 0;
+    this.bossPhaseTimer = 0;
+    this.bossSpiralAngle = 0;
+    this.bossRef = null;
+    this.bossHP = 0;
+    this.bossMaxHP = 0;
+    this.explosionEmitters = [];
+    this.lastVibrate = 0;
+    this.lastBossDmgVibrate = 0;
+
     const W = this.scale.width;
     const H = this.scale.height;
 
@@ -1286,8 +1320,8 @@ class PlayScene extends Phaser.Scene {
 
     // listen for bomb from UI scene
     this.events.on("bomb", () => { this.fireBomb(); });
-    this.events.on("focus-on",  () => { this.focusActive = true; });
-    this.events.on("focus-off", () => { this.focusActive = false; });
+    this.events.on("focus-on",  () => { this.setFocusState(true);  });
+    this.events.on("focus-off", () => { this.setFocusState(false); });
 
     // hint dismiss
     const hint = document.getElementById("sv-hint");
@@ -1361,9 +1395,9 @@ class PlayScene extends Phaser.Scene {
     }
 
     // player lerp to target
-    // Tier 2+: faster lerp. Focus mode halves responsiveness for precision.
+    // Tier 2+: faster lerp. Focus mode SLOW precision (×0.3).
     let lerpFactor = 0.25 + this.upgradeTier * 0.05;
-    if (this.focusActive) lerpFactor *= 0.45;
+    if (this.focusActive) lerpFactor *= 0.3;
     this.playerShip.x = Phaser.Math.Linear(this.playerShip.x, this.targetX, lerpFactor);
     this.playerShip.y = Phaser.Math.Linear(this.playerShip.y, this.targetY, lerpFactor);
 
@@ -1373,6 +1407,9 @@ class PlayScene extends Phaser.Scene {
 
     // thrust emitter follow (behind twin engines)
     this.thrustEmitter.setPosition(this.playerShip.x, this.playerShip.y + 26);
+    if (this.focusHalo && this.focusHalo.visible) {
+      this.focusHalo.setPosition(this.playerShip.x, this.playerShip.y);
+    }
 
     // invuln blink
     if (this.invulnTimer > 0) {
@@ -2333,6 +2370,33 @@ class PlayScene extends Phaser.Scene {
     this.score += pts;
     this.registry.set("score", this.score);
     this.checkUpgradeTier();
+  }
+
+  private setFocusState(on: boolean): void {
+    this.focusActive = on;
+    if (on) {
+      if (!this.focusHalo) {
+        this.focusHalo = this.add.circle(this.playerShip.x, this.playerShip.y, 34, 0x22eeff, 0.0)
+          .setStrokeStyle(2, 0x22eeff, 1)
+          .setDepth(9);
+      }
+      this.focusHalo.setVisible(true);
+      this.tweens.killTweensOf(this.focusHalo);
+      this.tweens.add({
+        targets: this.focusHalo,
+        alpha: { from: 0.1, to: 0.35 },
+        scale: { from: 0.9, to: 1.15 },
+        duration: 600,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+    } else if (this.focusHalo) {
+      this.tweens.killTweensOf(this.focusHalo);
+      this.focusHalo.setVisible(false);
+    }
+    // visual brief flash on ship to confirm state change
+    this.cameras.main.flash(120, on ? 40 : 20, on ? 200 : 30, on ? 220 : 30, false);
   }
 
   private checkUpgradeTier(): void {
