@@ -180,17 +180,6 @@ export const GAMES: GameEntry[] = [
     load: () => import("./gem-cascade/index.js"),
   },
   {
-    id: "surv-swarm",
-    title: "Surv Swarm",
-    tagline: "Sopravvivi all'orda.",
-    palette: { bg: "#0a0018", fg: "#ffffff", accent: "#ff2266" },
-    category: "solo",
-    modes: ["solo"],
-    status: "ready",
-    orientation: "portrait",
-    load: () => import("./surv-swarm/index.js"),
-  },
-  {
     id: "color-flow",
     title: "Color Flow",
     tagline: "Pour. Sort. Satisfy.",

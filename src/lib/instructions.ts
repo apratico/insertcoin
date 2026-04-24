@@ -254,23 +254,6 @@ const INSTRUCTIONS: Record<string, GameInstructions> = {
       "Modes: Time Attack 60s · Moves-per-level · Endless.",
     ],
   },
-  "surv-swarm": {
-    title: "Surv Swarm",
-    it: [
-      "Tieni premuto OVUNQUE sullo schermo = muovi verso quel punto.",
-      "Armi sparano automatiche (spada, aura, fireball, ecc.).",
-      "Uccidi nemici = xp gem → raccogli per level up.",
-      "Level up: scegli 1 di 3 carte power-up.",
-      "Sopravvivi alle ondate. Boss ogni 2 min.",
-    ],
-    en: [
-      "Hold ANYWHERE on screen = move toward that point.",
-      "Weapons fire automatically (sword, aura, fireball, etc.).",
-      "Kill enemies → xp gem → collect to level up.",
-      "Level up: pick 1 of 3 power-up cards.",
-      "Survive the waves. Boss every 2 min.",
-    ],
-  },
   "color-flow": {
     title: "Color Flow",
     it: [
