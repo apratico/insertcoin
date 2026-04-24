@@ -1454,39 +1454,64 @@ class PlayScene extends Phaser.Scene {
 
     playSfx("shoot");
 
+    // Max 2 bullets per volley. L1 = 1 bullet centered, L2+ = 2 parallel-ish.
+    // Bullet size + damage scale with weaponLevel (pill progression).
+    const twin = this.weaponLevel >= 2;
+    const spacing = 10 + this.weaponLevel * 2;
+
     switch (this.weaponType) {
       case "basic": {
-        const b = this.spawnPlayerBullet(x, y, bulletKey);
-        if (b) (b.body as Phaser.Physics.Arcade.Body).setVelocity(0, -500);
+        if (twin) {
+          const bL = this.spawnPlayerBullet(x - spacing, y, bulletKey);
+          const bR = this.spawnPlayerBullet(x + spacing, y, bulletKey);
+          if (bL) (bL.body as Phaser.Physics.Arcade.Body).setVelocity(0, -520);
+          if (bR) (bR.body as Phaser.Physics.Arcade.Body).setVelocity(0, -520);
+        } else {
+          const b = this.spawnPlayerBullet(x, y, bulletKey);
+          if (b) (b.body as Phaser.Physics.Arcade.Body).setVelocity(0, -500);
+        }
         break;
       }
       case "spread": {
-        const angles = [-15, 0, 15];
-        angles.forEach((deg) => {
+        // narrow fan
+        const deg = 6 + this.weaponLevel * 1.5;
+        if (twin) {
+          const a = (deg * Math.PI) / 180;
+          const bL = this.spawnPlayerBullet(x - spacing * 0.4, y, bulletKey);
+          const bR = this.spawnPlayerBullet(x + spacing * 0.4, y, bulletKey);
+          if (bL) (bL.body as Phaser.Physics.Arcade.Body).setVelocity(-Math.sin(a) * 520, -Math.cos(a) * 520);
+          if (bR) (bR.body as Phaser.Physics.Arcade.Body).setVelocity(Math.sin(a) * 520, -Math.cos(a) * 520);
+        } else {
           const b = this.spawnPlayerBullet(x, y, bulletKey);
-          if (b) {
-            const rad = (deg * Math.PI) / 180;
-            (b.body as Phaser.Physics.Arcade.Body).setVelocity(Math.sin(rad) * 500, -Math.cos(rad) * 500);
-          }
-        });
+          if (b) (b.body as Phaser.Physics.Arcade.Body).setVelocity(0, -500);
+        }
         break;
       }
       case "wide": {
-        const angles = [-30, -15, 0, 15, 30];
-        angles.forEach((deg) => {
+        // heavy twin slugs, slight outward angle
+        const deg = 10 + this.weaponLevel * 2;
+        if (twin) {
+          const a = (deg * Math.PI) / 180;
+          const bL = this.spawnPlayerBullet(x - spacing * 0.7, y, bulletKey);
+          const bR = this.spawnPlayerBullet(x + spacing * 0.7, y, bulletKey);
+          if (bL) (bL.body as Phaser.Physics.Arcade.Body).setVelocity(-Math.sin(a) * 480, -Math.cos(a) * 480);
+          if (bR) (bR.body as Phaser.Physics.Arcade.Body).setVelocity(Math.sin(a) * 480, -Math.cos(a) * 480);
+        } else {
           const b = this.spawnPlayerBullet(x, y, bulletKey);
-          if (b) {
-            const rad = (deg * Math.PI) / 180;
-            (b.body as Phaser.Physics.Arcade.Body).setVelocity(Math.sin(rad) * 480, -Math.cos(rad) * 480);
-          }
-        });
+          if (b) (b.body as Phaser.Physics.Arcade.Body).setVelocity(0, -480);
+        }
         break;
       }
       case "homing": {
-        const b1 = this.spawnPlayerBullet(x - 14, y + 6, bulletKey);
-        const b2 = this.spawnPlayerBullet(x + 14, y + 6, bulletKey);
-        if (b1) (b1.body as Phaser.Physics.Arcade.Body).setVelocity(-20, -400);
-        if (b2) (b2.body as Phaser.Physics.Arcade.Body).setVelocity(20, -400);
+        if (twin) {
+          const b1 = this.spawnPlayerBullet(x - spacing, y + 6, bulletKey);
+          const b2 = this.spawnPlayerBullet(x + spacing, y + 6, bulletKey);
+          if (b1) (b1.body as Phaser.Physics.Arcade.Body).setVelocity(-20, -420);
+          if (b2) (b2.body as Phaser.Physics.Arcade.Body).setVelocity(20, -420);
+        } else {
+          const b = this.spawnPlayerBullet(x, y + 6, bulletKey);
+          if (b) (b.body as Phaser.Physics.Arcade.Body).setVelocity(0, -420);
+        }
         break;
       }
     }
@@ -1515,7 +1540,13 @@ class PlayScene extends Phaser.Scene {
     const b = this.playerBullets.get(x, y, key) as Phaser.Physics.Arcade.Image | null;
     if (!b) return null;
     b.setActive(true).setVisible(true).setDepth(5);
-    b.setData("dmg", this.weaponLevel === 4 ? 3 : 1);
+    // Bullet size + damage scale with weaponLevel (pill progression).
+    // L1 = 1×/1dmg, L2 = 1.3×/2dmg, L3 = 1.6×/3dmg, L4 = 1.9×/5dmg, L5 = 2.3×/7dmg.
+    const sizeMap: Record<WeaponLevel, number> = { 1: 1.0, 2: 1.3, 3: 1.6, 4: 1.9, 5: 2.3 };
+    const dmgMap:  Record<WeaponLevel, number> = { 1: 1,   2: 2,   3: 3,   4: 5,   5: 7 };
+    const scale = sizeMap[this.weaponLevel];
+    b.setScale(scale);
+    b.setData("dmg", dmgMap[this.weaponLevel]);
     const body = b.body as Phaser.Physics.Arcade.Body;
     body.reset(x, y);
     body.setAllowGravity(false);
