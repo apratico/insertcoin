@@ -222,17 +222,6 @@ export const GAMES: GameEntry[] = [
     orientation: "portrait",
     load: () => import("./drop-stack/index.js"),
   },
-  {
-    id: "pinball",
-    title: "Neon Flipper",
-    tagline: "Flipper classico arcade.",
-    palette: { bg: "#1a0220", fg: "#ffffff", accent: "#ff3388" },
-    category: "solo",
-    modes: ["solo"],
-    status: "ready",
-    orientation: "portrait",
-    load: () => import("./pinball/index.js"),
-  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

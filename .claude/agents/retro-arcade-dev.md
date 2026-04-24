@@ -221,6 +221,99 @@ First Phaser 4 game shipped in insertcoin (`src/games/star-void/index.ts`, ~2300
 - Round-banner pattern (JSON in registry + UIScene listener + tween).
 - Weapon-reward-on-boss-kill pattern — immediate loop hook for any game with progression.
 
+# Pinball genre — specifics (parked for future full-scope build)
+
+Pinball MVP attempted 2026-04-24 as Neon Flipper (Canvas 2D + Matter.js
+constraints). Scrapped by user: flippers too short/off, plunger lane
+visually detached, posts looked like balls, overall feel not arcade.
+Lesson: pinball done well is 3-5 days focused work, NOT a quick MVP.
+
+When revisiting:
+
+## Scope requirements (pre-code)
+
+- Table mockup in SVG or physical sketch BEFORE writing code. Get
+  proportions right before binding to Matter.
+- Decide target feel first: Williams/Bally 80s (chrome + inserts) vs
+  Stern modern (LED everywhere) vs neon retrowave (synthwave palette).
+- Playtest each physics parameter in isolation (ball weight, gravity
+  Y, restitution per bumper/wall/flipper, friction air).
+
+## Physics gotchas
+
+- Matter.Constraint pin-hinged flippers drift on fast angular change.
+  Use `Matter.Body.setAngle` + `setAngularVelocity` each tick driven
+  by manual lerp, NOT constraint spring. Compute angular velocity as
+  `(nextAngle - prevAngle) / dt` so the ball gets a kick.
+- Flipper flip angle range matters. Real pinball: rest ~30° from
+  horizontal, flipped ~60° from rest = 90° total swing. The MVP used
+  too small range.
+- Ball radius 10-12 px on 360px-wide design. Smaller = unplayable,
+  bigger = table feels cramped.
+- Gravity Y 1.5-2.0 for arcade feel. 1.0 is too floaty.
+- Wall restitution 0.3-0.5. Flipper restitution 0.5-0.7. Bumper
+  restitution 1.6-2.0 for that "POP" kickback.
+- `frictionAir` on ball 0.005-0.01. Lower = ice skating, higher =
+  syrup.
+
+## Table layout (arcade-faithful)
+
+Portrait 360×640 design. Approximate zones:
+- TOP 0-30: score DMD / LED.
+- Upper playfield 30-180: 3 pop bumpers + 2 standup targets + sling.
+- Mid 180-380: drop target bank + spinner + loop ramp entrance.
+- Lower 380-560: slingshots + inlane/outlane divider posts.
+- Flippers at 560-580, 5-10° tilt.
+- Drain 580-620 (gap between flippers + outlanes).
+- Plunger lane on far right, 40px wide, with skill shot target top.
+
+## Juice layer
+
+- Individual insert lights under bumpers/targets that blink on hit.
+- Flash lamps around jackpot trigger.
+- DMD-style score display with scrolling "JACKPOT!" / "TILT!" / etc.
+- Camera shake scaled per event.
+- Ball trail particle line (short, fades fast, adds motion feel).
+- Multiball physics (2-3 balls at once) for jackpot mode.
+
+## Reusable from Matter.js
+
+- `Bodies.fromVertices` for slingshot triangles + ramp curves.
+- `Bodies.circle` with high restitution for bumpers.
+- Sensor bodies (`isSensor: true`) for loop-completion zones — don't
+  push the ball but detect passage.
+- `Body.applyForce` on bumper hit instead of setVelocity for more
+  natural physics.
+
+## Fatal mistakes to avoid (learned from MVP)
+
+- Flipper shaft sticking out past pivot = looks wrong. Pivot should
+  sit AT flipper base end, flipper extends outward only.
+- Plunger knob at end of a line detached from the lane = reads as
+  separate UI element. Integrate visually inside the lane.
+- Posts as plain circles next to flippers = looks like stray balls.
+  Use distinctive color + inner ring pattern (chrome with black cap).
+- Drain arrow ▼ below flippers is corny. Use a dark triangular
+  outlet shape instead.
+- "Flippers flicker" if setAngle overrides Matter's own angle tween
+  mid-collision. Use lerped target via custom update, not instant
+  jumps.
+
+## Minimum deliverable scope (when retrying)
+
+1. Table SVG mockup approved visually first.
+2. Working flipper physics with proper 90° swing arc + ball-kick
+   momentum transfer.
+3. 3 bumpers + 2 slingshots + 1 drop-target bank of 5 minimum.
+4. Plunger with charge meter visibly inside the lane.
+5. Score + multiball hook + jackpot mode.
+6. Ball trail + particle bursts + shake.
+7. SFX: bumper "POP", slingshot "WHACK", target "TING", flipper
+   "CLACK", drain "GLUG", jackpot "FANFARE".
+8. 3 balls standard, extras via skill shot.
+
+Below this bar = don't ship.
+
 # Breakout / Arkanoid genre — specifics
 
 Grid-based brick-breaker. Portrait or landscape. Skeleton from the Phaser official sample is a solid starting point, but real Arkanoid fidelity needs bricks-with-HP, capsules, enemies, a boss, and bezel chrome.

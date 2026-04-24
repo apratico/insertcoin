@@ -254,25 +254,6 @@ const INSTRUCTIONS: Record<string, GameInstructions> = {
       "Modes: Time Attack 60s · Moves-per-level · Endless.",
     ],
   },
-  "pinball": {
-    title: "Neon Flipper",
-    it: [
-      "Tieni premuto metà sinistra dello schermo = flipper sinistro.",
-      "Tieni premuto metà destra dello schermo = flipper destro.",
-      "Tieni premuto in basso a destra = carica plunger · rilascia = lancia.",
-      "Bumper (cerchi) = +150 pt · Slingshot = +100 · Drop target = +500.",
-      "Tutti i drop target abbassati = JACKPOT +10000 pt.",
-      "3 palle per partita. Palla nel drain = perdi una palla.",
-    ],
-    en: [
-      "Hold left half of screen = left flipper.",
-      "Hold right half of screen = right flipper.",
-      "Hold bottom-right = charge plunger · release = launch.",
-      "Bumpers = +150 pts · Slingshots = +100 · Drop targets = +500.",
-      "All drop targets down = JACKPOT +10000 pts.",
-      "3 balls per game. Ball in drain = lose one ball.",
-    ],
-  },
   "drop-stack": {
     title: "Drop Stack",
     it: [
