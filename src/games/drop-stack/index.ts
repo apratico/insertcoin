@@ -256,6 +256,18 @@ export function mount(container: HTMLElement): () => void {
   let offsetX = 0;
   let offsetY = 0;
 
+  // juice state
+  interface Particle { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number; }
+  const particles: Particle[] = [];
+  let shakeStrength = 0;
+  let shakeTimer = 0;
+  let flashAlpha = 0;
+  let flashColor: [number, number, number] = [255, 255, 255];
+  // combo
+  let comboCount = 0;
+  let comboTimer = 0;
+  const COMBO_WINDOW = 900;
+
   // Matter world
   const engine = Matter.Engine.create();
   engine.gravity.y = 1.2;
@@ -335,7 +347,15 @@ export function mount(container: HTMLElement): () => void {
     a.data.merging = true;
     b.data.merging = true;
     const tier = a.data.tier;
-    const pts = TIERS[tier]!.score;
+    const basePts = TIERS[tier]!.score;
+
+    // combo: if a merge happens within COMBO_WINDOW, count it
+    const now = performance.now();
+    if (now - comboTimer < COMBO_WINDOW) comboCount++;
+    else comboCount = 1;
+    comboTimer = now;
+    const comboMult = comboCount >= 5 ? 3 : comboCount >= 3 ? 2 : comboCount >= 2 ? 1.5 : 1;
+    const pts = Math.round(basePts * comboMult);
     score += pts;
     scoreEl.textContent = String(score);
 
@@ -345,22 +365,35 @@ export function mount(container: HTMLElement): () => void {
     const vx = (a.body.velocity.x + b.body.velocity.x) / 2;
     const vy = (a.body.velocity.y + b.body.velocity.y) / 2;
 
+    // particle burst tier-colored
+    spawnMergeParticles(mx, my, tier);
+    // camera shake proportional to tier
+    addShake(2 + tier * 0.8, 180 + tier * 20);
+
     removeOrb(a.data.id);
     removeOrb(b.data.id);
 
-    // score popup in design coords → DOM coords
-    showPopup(mx, my, `+${pts}`);
+    // score popup — combo-aware text/color
+    const popupText = comboMult > 1 ? `+${pts} x${comboMult}` : `+${pts}`;
+    showPopup(mx, my, popupText, comboMult > 1 ? "#ff66ff" : "#ffee55");
 
     if (tier < MAX_TIER) {
       addOrb(mx, my, tier + 1, { x: vx * 0.5, y: vy * 0.5 });
-      playSfx("pop");
+      playSfx(tier >= 6 ? "levelup" : "pop");
       if (navigator.vibrate) navigator.vibrate(8 + tier);
     } else {
-      // top tier pair → massive bonus, both just disappear (rare!)
-      playSfx("levelup");
-      if (navigator.vibrate) navigator.vibrate([30, 30, 100]);
+      // top tier pair → spectacular celebration
+      playSfx("fanfare");
+      if (navigator.vibrate) navigator.vibrate([60, 40, 120, 40, 200]);
       score += 500;
       scoreEl.textContent = String(score);
+      flashAlpha = 1;
+      flashColor = [120, 255, 180];
+      addShake(14, 500);
+      // burst of confetti from center
+      for (let i = 0; i < 80; i++) {
+        spawnMergeParticles(mx + (Math.random() - 0.5) * 40, my + (Math.random() - 0.5) * 40, MAX_TIER);
+      }
     }
 
     if (score > best) {
@@ -370,10 +403,42 @@ export function mount(container: HTMLElement): () => void {
     }
   }
 
-  function showPopup(designX: number, designY: number, text: string): void {
+  function spawnMergeParticles(x: number, y: number, tier: number): void {
+    const t = TIERS[tier]!;
+    const count = 8 + tier * 2;
+    const speedBase = 80 + tier * 12;
+    for (let i = 0; i < count; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const speed = speedBase * (0.5 + Math.random());
+      const color = i % 3 === 0 ? t.accent : i % 3 === 1 ? t.color : "#ffffff";
+      particles.push({
+        x, y,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed - 30,
+        life: 0,
+        maxLife: 400 + Math.random() * 400,
+        color,
+        size: 2 + Math.random() * 3,
+      });
+    }
+    // center flash particle
+    particles.push({
+      x, y, vx: 0, vy: 0,
+      life: 0, maxLife: 220,
+      color: t.accent, size: t.radius * 0.8,
+    });
+  }
+
+  function addShake(strength: number, duration: number): void {
+    if (strength > shakeStrength) shakeStrength = strength;
+    if (duration > shakeTimer) shakeTimer = duration;
+  }
+
+  function showPopup(designX: number, designY: number, text: string, color?: string): void {
     const p = document.createElement("div");
     p.className = "dropstack-popup";
     p.textContent = text;
+    if (color) p.style.color = color;
     wrap.appendChild(p);
     const cssX = offsetX + designX * scale;
     const cssY = offsetY + designY * scale;
@@ -548,17 +613,28 @@ export function mount(container: HTMLElement): () => void {
     ctx.setLineDash([]);
   }
 
-  function drawHeld(): void {
+  function drawHeld(now: number): void {
     if (dead) return;
+    const r = TIERS[holdTier]!.radius;
     // aim guide
-    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.strokeStyle = "rgba(255,255,255,0.28)";
     ctx.lineWidth = 1;
-    ctx.setLineDash([2, 4]);
+    ctx.setLineDash([3, 5]);
     ctx.beginPath();
-    ctx.moveTo(holdX, DROP_Y + TIERS[holdTier]!.radius);
-    ctx.lineTo(holdX, JAR_BOTTOM);
+    ctx.moveTo(holdX, DROP_Y + r);
+    ctx.lineTo(holdX, JAR_BOTTOM - 4);
     ctx.stroke();
     ctx.setLineDash([]);
+    // hover pulse ring
+    const pulse = 1 + Math.sin(now / 260) * 0.08;
+    ctx.save();
+    ctx.strokeStyle = TIERS[holdTier]!.accent;
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(holdX, DROP_Y, r * 1.2 * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
     // orb
     drawOrb(holdX, DROP_Y, holdTier);
   }
@@ -598,29 +674,94 @@ export function mount(container: HTMLElement): () => void {
     lastTime = now;
     if (!dead) Matter.Engine.update(engine, dt);
 
+    // update juice
+    if (shakeTimer > 0) {
+      shakeTimer -= dt;
+      if (shakeTimer <= 0) { shakeStrength = 0; }
+    }
+    if (flashAlpha > 0) flashAlpha = Math.max(0, flashAlpha - dt / 500);
+    // particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i]!;
+      p.life += dt;
+      if (p.life >= p.maxLife) { particles.splice(i, 1); continue; }
+      p.x += p.vx * dt / 1000;
+      p.y += p.vy * dt / 1000;
+      p.vy += 260 * dt / 1000; // gravity on sparks
+      p.vx *= 0.985;
+    }
+    // combo decay
+    if (comboCount > 0 && now - comboTimer > COMBO_WINDOW) comboCount = 0;
+
     // render
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Fill bg (fallback before scale transform)
     ctx.fillStyle = "#050713";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // scale transform: DPR * design-fit
-    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * offsetX, dpr * offsetY);
+    // shake offset in design units
+    const shakeX = shakeTimer > 0 ? (Math.random() - 0.5) * 2 * shakeStrength : 0;
+    const shakeY = shakeTimer > 0 ? (Math.random() - 0.5) * 2 * shakeStrength : 0;
+
+    // scale transform: DPR * design-fit + shake
+    ctx.setTransform(
+      dpr * scale, 0, 0,
+      dpr * scale,
+      dpr * (offsetX + shakeX * scale),
+      dpr * (offsetY + shakeY * scale)
+    );
 
     drawJar();
 
-    // orbs
     orbs.forEach((o) => {
       drawOrb(o.body.position.x, o.body.position.y, o.data.tier, o.body.angle);
     });
 
-    drawHeld();
+    drawHeld(now);
+    drawParticles();
 
-    // danger line check: any orb with top above JAR_TOP for sustained time
+    // flash overlay (screen-wide additive wash)
+    if (flashAlpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = flashAlpha * 0.6;
+      ctx.fillStyle = `rgb(${flashColor[0]},${flashColor[1]},${flashColor[2]})`;
+      ctx.fillRect(0, 0, DESIGN_W, DESIGN_H);
+      ctx.restore();
+    }
+
+    // combo badge in HUD area (bottom of jar)
+    if (comboCount >= 2) {
+      const fade = Math.max(0, 1 - (now - comboTimer) / COMBO_WINDOW);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.font = "bold 22px monospace";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#ff66ff";
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 3;
+      const txt = `COMBO x${comboCount}`;
+      ctx.strokeText(txt, DESIGN_W / 2, JAR_BOTTOM + 18);
+      ctx.fillText(txt, DESIGN_W / 2, JAR_BOTTOM + 18);
+      ctx.restore();
+    }
+
     checkDanger(now);
 
     rafId = requestAnimationFrame(loop);
+  }
+
+  function drawParticles(): void {
+    for (const p of particles) {
+      const t = p.life / p.maxLife;
+      const alpha = 1 - t;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * (1 - t * 0.5), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   function checkDanger(now: number): void {
@@ -677,6 +818,12 @@ export function mount(container: HTMLElement): () => void {
     dangerOrbId = null;
     overEl.style.display = "none";
     holdX = DESIGN_W / 2;
+    particles.length = 0;
+    shakeStrength = 0;
+    shakeTimer = 0;
+    flashAlpha = 0;
+    comboCount = 0;
+    comboTimer = 0;
     renderNext();
   }
 
