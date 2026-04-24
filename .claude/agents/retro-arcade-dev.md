@@ -185,6 +185,138 @@ Decision rule for new games in 2026:
 3. Physics sandbox, particle soup >2000 entities, CPU-bound simulation → Rust + macroquad/WASM.
 4. Editor-driven asset-heavy game → Godot 4 HTML5.
 
+# Star Void — lessons learned (Phaser 4 in production)
+
+First Phaser 4 game shipped in insertcoin (`src/games/star-void/index.ts`, ~2300 LoC). Patterns proven in production — reuse wholesale for future Phaser games.
+
+## What worked
+
+- **Three-scene split** (BootScene / PlayScene / UIScene) with `scene.launch("UI")` for parallel HUD. UIScene reacts to `game.registry` changes via `registry.events.on("changedata")` — clean decoupling.
+- **Procedural textures via `Phaser.Textures.CanvasTexture`** — zero PNG assets. Ships <50KB per game (only the JS).
+- **Object pooling with `maxSize`** on `physics.add.group(...)` — bullets 300, enemy bullets 500, enemies 60. Reset body via `body.reset(-200,-200)` + `setActive(false).setVisible(false)`. No leaks, no GC hitches.
+- **`setTransform(dpr, …)` path** handled automatically by Phaser's ScaleManager. Don't hand-roll DPR like in Canvas 2D.
+- **Round system** (3 rounds × timed waves × end-boss + weapon reward) drives retention much better than pure endless mode. Boss kill → `onRoundCleared(kind)` → grants permanent weapon + banner overlay.
+- **Banner overlay** = tiny container in UIScene (bg rect + title + subtitle) driven by a single `round-banner` registry key holding a JSON payload `{text, sub, color, ts}`. Tween fade-in, delayedCall fade-out. Cheap + reusable.
+- **Weapon/round HUD**: left = weapon badge `WIDE L3`, top-center = `R2 · SECTOR BETA` (round name + color per round), wave sub-counter smaller below. Clear at a glance on mobile.
+- **Boss phases** driven by HP thresholds (`hp < maxHp * 0.66`, `* 0.33`). Phase 0 = aimed spread, phase 1 = spiral, phase 2 = wall-curtain + aimed. Boss3 variant just turns knobs up: higher bullet counts, faster spiral, extra radial burst.
+- **Weapon composition** from primitives (`aimed`, `radial`, `spiral`, `wall`) — easy to remix for new bosses.
+- **Vibration thresholds** — `lastVibrate` / `lastBossDmgVibrate` timestamps gate `navigator.vibrate` so rapid events don't saturate the haptic hardware.
+
+## What burned us (don't repeat)
+
+- **Phaser 4 default export dropped** — `import Phaser from "phaser"` throws at runtime. Must use `import * as Phaser from "phaser"`. Agent blueprint skeleton (line ~58) still says the old form for Phaser 3 context; the Phaser 4 section explicitly overrides.
+- **Streak auto-score** (score += 1 per tick while no hits taken) felt like a bug to the user ("score keeps rising"). Don't auto-accrue — every score event must trace to a gameplay action (kill, pickup, bonus).
+- **Sparse wave timeline** (10s gaps) felt dead. Pack events every 3-5s. Screen should never empty.
+- **TileSprite seam** — star textures at 512×512 tiled. Stars drawn near an edge had halo/bloom clipped; when `tilePositionY` wrapped, a dark line appeared. **Fix**: for each star/blob within `reach` of an edge, draw wrapped copies at the 8 neighboring tile positions (±size x/y). Cost is minimal (only stars near edges get extra draws) and the seam vanishes. Same trick applies to any procedural tileable texture.
+- **Ship/enemy too small** on mobile — first pass at 24×28 pixel hulls felt cramped. 48×56 player + 40–64px enemies reads much better at 360×640. Hitboxes can stay small (10×10 on player) to keep the game fair.
+- **Near-layer starfield too busy** — big hero stars with long diffraction spikes stole attention from enemies. Keep `maxR ≤ 1.2` on the foreground layer, `heroChance < 0.02`, halo `r*3` max, base alpha 0.55.
+- **Texture aesthetics** — colorful magenta/orange nebula felt "cheap". User wanted a clean night-sky look. Deep-navy background (`#050b1e`) + white/pale-blue stars + subtle blue haze only. Reference-image-driven iteration beat "make it pretty".
+
+## Reusable primitives (extract on demand)
+
+- `seededRng(seed)` → deterministic RNG for repeatable procedural textures.
+- `hexWithAlpha("#rrggbb", a)` → rgba string for gradient stops.
+- `makeStarLayers(config)` → seamless tileable starfield (3 layers).
+- `aimed(x, y, tx, ty, count, spread, speed, key, group)` / `radial` / `spiral` / `wall` → bullet pattern primitives. Pull these into `src/games/<id>/patterns.ts` when a game needs them.
+- Round-banner pattern (JSON in registry + UIScene listener + tween).
+- Weapon-reward-on-boss-kill pattern — immediate loop hook for any game with progression.
+
+# Breakout / Arkanoid genre — specifics
+
+Grid-based brick-breaker. Portrait or landscape. Skeleton from the Phaser official sample is a solid starting point, but real Arkanoid fidelity needs bricks-with-HP, capsules, enemies, a boss, and bezel chrome.
+
+## Core loop
+
+1. Paddle (Vaus) slides along bottom. Drag pointer X → paddle X (clamped inside bezel).
+2. Ball starts stuck to paddle (`data("onPaddle", true)`). Tap/pointerup → launch with a slight leftward bias (`setVelocity(-75, -300)` in skeleton; scale to mobile coords).
+3. Ball collides with bricks (`physics.add.collider(ball, bricks, hitBrick)`), paddle (custom bounce math), world walls (top/left/right bounded; bottom OPEN so ball can be lost).
+4. `bricks.countActive() === 0` → next round (`resetLevel`). Static group reuses the same brick sprites: `brick.enableBody(false, 0, 0, true, true)`.
+5. `ball.y > playfieldBottom` → ball lost, decrement lives, respawn stuck on paddle.
+6. All lives lost → game over → submit score.
+
+## Paddle bounce math (keep from skeleton)
+
+Manual reflection based on ball-vs-paddle-center offset. Do NOT rely on arcade-physics automatic bounce for paddle — it produces boring straight-up returns.
+
+```ts
+hitPaddle(ball, paddle) {
+  if (ball.x < paddle.x) ball.setVelocityX(-10 * (paddle.x - ball.x));
+  else if (ball.x > paddle.x) ball.setVelocityX(10 * (ball.x - paddle.x));
+  else ball.setVelocityX(2 + Math.random() * 8); // anti-stalemate jitter
+}
+```
+
+Clamp resulting speed each bounce so it never exceeds `MAX_BALL_SPEED` (scale up per round).
+
+## Brick taxonomy (Arkanoid-faithful)
+
+- **8 color tiers** — white 50pts, orange 60, cyan 70, green 80, red 90, blue 100, purple 110, yellow 120. 1 HP each.
+- **Silver** — `(2 + floor(round/8))` HP. Worth `50 * round`. Metallic gradient + dithered texture sells it.
+- **Gold** — indestructible. Ball bounces off. Worth 0. Warm yellow radial glow.
+
+Store levels as ASCII grids mapped char → type:
+```ts
+const LAYOUTS: string[][] = [
+  ["W".repeat(13), "O".repeat(13), "C".repeat(13), ...], // 6 rows
+  ...
+];
+```
+Char map: `.` empty · `W/O/C/G/R/B/P/Y` colors · `S` silver · `G` gold (note: collide but don't increment "cleared" count).
+
+## Procedural brick textures
+
+Beveled pixel style: base fill + TL highlight rectangle + BR shadow rectangle + inner 1px bright line. Silver = metallic linear gradient + 2-3 dithered rects. Gold = base fill + radial glow overlay. Cache one canvas texture per brick type, not per instance.
+
+## Power-up capsules (arcade canon)
+
+Drop from random broken bricks, 8-10% chance. Arcade constraint: **one capsule on screen at a time**. Kill any existing capsule before spawning another.
+
+| Letter | Color | Effect |
+|--------|-------|--------|
+| C | red | Catch — ball sticks to paddle on contact, tap to re-launch |
+| E | blue | Enlarge — paddle grows (2 stacks, short → normal → wide) |
+| S | cyan | Slow — ball speed × 0.6 for 20s |
+| L | red | Laser — paddle gains twin lasers, tap to fire |
+| D | green | Disruption — ball splits into 3 (balls pool, maxSize 6) |
+| B | violet | Break — opens exit warp at right side → instant round clear |
+| P | grey | Player — +1 life (cap 5) |
+
+Render capsule as a rounded pill with animated letter + colored halo + slow rotation. Fall physics: constant Y velocity.
+
+## Enemies (Doh minions)
+
+Small UFO-like drones drift down through the playfield every ~15s. Ball hit → destroy + score. Paddle hit → no damage, but they block ball path. Use `physics.add.overlap(ball, enemyGroup, kill)` and `physics.add.overlap(paddle, enemyGroup, noop)`.
+
+## Boss (DOH)
+
+Stone-face sprite top-center. Multi-phase (same pattern as Star Void: aimed salvos, spiral, bullet walls). HP bar in UIScene. When mouth opens (timed), weak core exposes — ball hits count double. Kill → VICTORY.
+
+Use the boss3 template from Star Void as a starting point — just change the sprite, drop the ship-movement code, and keep the phase timeline + bullet primitives.
+
+## Bezel frame
+
+Draw a decorative arcade bezel inside the play area (top + left + right, NOT bottom). Rivets, panel seams, glowing LEDs. Physics walls match the bezel's inner edge, not the scene bounds — ball must bounce off the bezel's visual edge, not the invisible scene border.
+
+## Gamification
+
+- **4 sectors × 8 rounds + DOH finale** = 33 rounds.
+- **Combo** — consecutive brick hits without paddle bounce. Multiplier 2× @ 8, 3× @ 20, 4× @ 40. Float the combo number as a yellow popup that rises + fades.
+- **No-life-loss round** → +20% score flash banner.
+- **Sector clear** → big banner, +1 life, +2% capsule drop rate, Vaus palette unlock.
+- **Leaderboard submit** on gameover AND on DOH clear.
+
+## SFX palette (add to `src/lib/audio.ts` if missing)
+
+`launch` · `bounce-paddle` · `bounce-wall` · `brick-break` (4 pitch variants) · `silver-ping` · `gold-thud` · `capsule-pickup` · `capsule-drop` · `laser` · `ball-lost` · `life-gained` · `round-clear` · `sector-clear` · `boss-warning` · `boss-hit` · `victory`
+
+## Visual effects
+
+- Ball: bright white core + additive radial halo + short particle trail emitter following it.
+- Beveled bricks (see textures above). Tiny particle burst + camera shake on every break. Bigger shake on silver break, flash on gold collision.
+- CRT scanline overlay (TileSprite with horizontal dark lines, alpha ~0.15).
+- Parallax 3-layer background (distant star, mid grid, near floor grid). Palette swap per sector.
+- Screen shake scaled to event (1px brick, 3px capsule, 8px boss hit, 14px victory).
+
 # Vertical shmup genre — specifics
 
 Classic genre (Raiden, Dragon Blaze, Touhou, Cave shooters). Portrait-first. Phaser 4 is the natural fit.
