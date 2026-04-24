@@ -675,15 +675,15 @@ class BootScene extends Phaser.Scene {
         heroChance: 0.0,
         minR: 0.3, maxR: 0.7,
         colors: ["#b8c8e0", "#8c9cc0", "#a0b5d8"] },
-      // Mid layer: medium white + pale-blue stars with halo
-      { key: "star-mid",  size: 512, count: 320, seed: 29,
-        heroChance: 0.01,
-        minR: 0.6, maxR: 1.4,
+      // Mid layer: small white + pale-blue stars with halo
+      { key: "star-mid",  size: 512, count: 260, seed: 29,
+        heroChance: 0.005,
+        minR: 0.5, maxR: 1.0,
         colors: ["#ffffff", "#dce9ff", "#b8d0ff"] },
-      // Near layer: bigger luminous stars with frequent spikes
-      { key: "star-fast", size: 512, count: 140, seed: 11,
-        heroChance: 0.08,
-        minR: 1.0, maxR: 2.4,
+      // Near layer: subtle luminous stars, very rare hero spikes
+      { key: "star-fast", size: 512, count: 70, seed: 11,
+        heroChance: 0.015,
+        minR: 0.6, maxR: 1.2,
         colors: ["#ffffff", "#cfeaff", "#e8f1ff"] },
     ];
 
@@ -700,11 +700,11 @@ class BootScene extends Phaser.Scene {
         const color = cfg.colors[Math.floor(rng() * cfg.colors.length)]!;
         const r = cfg.minR + rng() * (cfg.maxR - cfg.minR);
 
-        // Halo bloom
-        const haloR = r * 5;
+        // Halo bloom (subtle, smaller on bigger stars to avoid visual noise)
+        const haloR = r * 3;
         const grd = ctx.createRadialGradient(x, y, 0, x, y, haloR);
-        grd.addColorStop(0, hexWithAlpha(color, 0.95));
-        grd.addColorStop(0.35, hexWithAlpha(color, 0.35));
+        grd.addColorStop(0, hexWithAlpha(color, 0.7));
+        grd.addColorStop(0.4, hexWithAlpha(color, 0.2));
         grd.addColorStop(1, hexWithAlpha(color, 0));
         ctx.fillStyle = grd;
         ctx.fillRect(x - haloR, y - haloR, haloR * 2, haloR * 2);
@@ -716,8 +716,8 @@ class BootScene extends Phaser.Scene {
         ctx.fill();
 
         // Hero diffraction spikes on the bigger stars
-        if (r > 1.3 && rng() < cfg.heroChance) {
-          const spikeLen = 8 + rng() * 12;
+        if (r > 0.9 && rng() < cfg.heroChance) {
+          const spikeLen = 4 + rng() * 5;
           const gradH = ctx.createLinearGradient(x - spikeLen, y, x + spikeLen, y);
           gradH.addColorStop(0,   hexWithAlpha(color, 0));
           gradH.addColorStop(0.5, hexWithAlpha(color, 0.95));
@@ -1040,7 +1040,7 @@ class PlayScene extends Phaser.Scene {
     this.starSlow.tilePositionY -= 0.025 * dt;
     this.nebula.tilePositionY   -= 0.012 * dt;
     // twinkle: alpha sine on the fast layer for shimmer
-    this.starFast.alpha = 0.85 + Math.sin(this.gameTime * 3) * 0.1;
+    this.starFast.alpha = 0.55 + Math.sin(this.gameTime * 3) * 0.08;
 
     // keyboard movement
     const cursors = this.data.get("cursors") as Phaser.Types.Input.Keyboard.CursorKeys | undefined;
