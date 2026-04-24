@@ -1,5 +1,6 @@
 export type GameMode = "solo" | "local2p" | "remote2p";
 export type GameCategory = "solo" | "company";
+export type GameOrientation = "portrait" | "landscape" | "any";
 
 export interface GameEntry {
   id: string;
@@ -9,6 +10,7 @@ export interface GameEntry {
   category: GameCategory;
   modes: GameMode[];
   status: "ready" | "soon";
+  orientation?: GameOrientation;
   load?: () => Promise<{ mount: (root: HTMLElement) => () => void }>;
 }
 
@@ -96,6 +98,7 @@ export const GAMES: GameEntry[] = [
     category: "solo",
     modes: ["solo"],
     status: "ready",
+    orientation: "portrait",
     load: () => import("./flappy/index.js"),
   },
 
@@ -108,6 +111,7 @@ export const GAMES: GameEntry[] = [
     category: "solo",
     modes: ["solo"],
     status: "ready",
+    orientation: "portrait",
     load: () => import("./tap-rotate/index.js"),
   },
   {
@@ -118,6 +122,7 @@ export const GAMES: GameEntry[] = [
     category: "solo",
     modes: ["solo"],
     status: "ready",
+    orientation: "portrait",
     load: () => import("./color-match-shooter/index.js"),
   },
   {
@@ -128,6 +133,7 @@ export const GAMES: GameEntry[] = [
     category: "solo",
     modes: ["solo"],
     status: "ready",
+    orientation: "portrait",
     load: () => import("./one-bullet/index.js"),
   },
   {
@@ -138,6 +144,7 @@ export const GAMES: GameEntry[] = [
     category: "solo",
     modes: ["solo"],
     status: "ready",
+    orientation: "portrait",
     load: () => import("./chain-blast/index.js"),
   },
   {
@@ -148,6 +155,7 @@ export const GAMES: GameEntry[] = [
     category: "solo",
     modes: ["solo"],
     status: "ready",
+    orientation: "portrait",
     load: () => import("./crypt-run/index.js"),
   },
   {
@@ -158,6 +166,7 @@ export const GAMES: GameEntry[] = [
     category: "solo",
     modes: ["solo"],
     status: "ready",
+    orientation: "portrait",
     load: () => import("./brick-buster/index.js"),
   },
   {
@@ -178,6 +187,7 @@ export const GAMES: GameEntry[] = [
     category: "solo",
     modes: ["solo"],
     status: "ready",
+    orientation: "portrait",
     load: () => import("./surv-swarm/index.js"),
   },
   {
@@ -198,6 +208,7 @@ export const GAMES: GameEntry[] = [
     category: "solo",
     modes: ["solo"],
     status: "ready",
+    orientation: "portrait",
     load: () => import("./block-fit/index.js"),
   },
   {
@@ -208,6 +219,7 @@ export const GAMES: GameEntry[] = [
     category: "solo",
     modes: ["solo"],
     status: "ready",
+    orientation: "portrait",
     load: () => import("./star-void/index.js"),
   },
 

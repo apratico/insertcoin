@@ -565,6 +565,30 @@ html, body {
   overflow: hidden;
 }
 
+/* Portrait-first games capped on wide screens so gameplay stays tight.
+   Cap width to 9:16 aspect of available height. Center + subtle letterbox
+   background. Mobile portrait (natural aspect) is unaffected. */
+.game-host[data-orientation="portrait"] .game-content {
+  max-width: min(100%, calc((100vh - 48px) * 9 / 16));
+  margin-left: auto;
+  margin-right: auto;
+  background: #000;
+}
+.game-host[data-orientation="portrait"] {
+  background: #050505;
+}
+
+/* Landscape-first games analogous cap (rare on mobile). */
+.game-host[data-orientation="landscape"] .game-content {
+  max-height: min(100%, calc(100vw * 9 / 16));
+  margin-top: auto;
+  margin-bottom: auto;
+  background: #000;
+}
+.game-host[data-orientation="landscape"] {
+  background: #050505;
+}
+
 .game-loader {
   flex: 1;
   display: flex;

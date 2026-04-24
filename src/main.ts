@@ -152,6 +152,7 @@ onRoute(async (route) => {
     unmountMenu();
     menuHost.style.display = "none";
     gameHost.style.display = "";
+    gameHost.dataset["orientation"] = entry.orientation ?? "any";
 
     const titleEl = document.getElementById("topbar-title");
     if (titleEl) titleEl.textContent = entry.title;

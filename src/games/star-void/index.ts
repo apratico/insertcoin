@@ -2173,15 +2173,30 @@ class PlayScene extends Phaser.Scene {
   }
 
   private gameOver(): void {
+    if (this.dead) return;
     this.dead = true;
     this.thrustEmitter.stop();
+    // stop emitting bullets/enemies: disable group children velocities so
+    // they don't keep drifting / cause further collisions
+    this.enemyBullets.getChildren().forEach((o) => {
+      const b = o as Phaser.Physics.Arcade.Image;
+      if (b.active && b.body) (b.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    });
+    this.enemyGroup.getChildren().forEach((o) => {
+      const e = o as Phaser.Physics.Arcade.Image;
+      if (e.active && e.body) (e.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    });
     playSfx("gameover");
     if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
     this.cameras.main.shake(500, 0.02);
+    this.spawnExplosion(this.playerShip.x, this.playerShip.y, true);
+    this.playerShip.setVisible(false);
     void submit(GAME_ID, this.score);
-    setTimeout(() => {
+    // Use Phaser's time.delayedCall so overlay always appears — setTimeout
+    // can get desynced across scene transitions.
+    this.time.delayedCall(900, () => {
       this.registry.set("gameover", true);
-    }, 1200);
+    });
   }
 }
 
@@ -2269,15 +2284,17 @@ class UIScene extends Phaser.Scene {
 
     // game over overlay (initially hidden)
     this.gameoverOverlay = this.add.container(W / 2, H / 2).setDepth(60).setVisible(false);
-    const goBg = this.add.rectangle(0, 0, 280, 180, 0x000000, 0.85);
+    const goBg = this.add.rectangle(0, 0, 280, 180, 0x000000, 0.9);
+    goBg.setStrokeStyle(2, 0xff3366, 0.7);
     const goTitle = this.add.text(0, -60, "GAME OVER", { fontFamily: "monospace", fontSize: "22px", color: "#ff3366" }).setOrigin(0.5);
     const goScoreLbl = this.add.text(0, -20, "SCORE", { fontFamily: "monospace", fontSize: "11px", color: "#aaaaaa" }).setOrigin(0.5);
     const goScore = this.add.text(0, 5, "0", { fontFamily: "monospace", fontSize: "26px", color: "#ffffff" }).setOrigin(0.5);
-    const goBtn = this.add.rectangle(0, 60, 140, 44, 0xff2266).setInteractive({ useHandCursor: true });
-    const goBtnLbl = this.add.text(0, 60, "PLAY AGAIN", { fontFamily: "monospace", fontSize: "11px", color: "#ffffff" }).setOrigin(0.5);
-    this.gameoverOverlay.add([goBg, goTitle, goScoreLbl, goScore, goBtnLbl, goBtn, goBtnLbl]);
+    const goBtn = this.add.rectangle(0, 60, 160, 48, 0xff2266)
+      .setInteractive({ useHandCursor: true });
+    const goBtnLbl = this.add.text(0, 60, "PLAY AGAIN", { fontFamily: "monospace", fontSize: "13px", color: "#ffffff", fontStyle: "bold" }).setOrigin(0.5);
+    this.gameoverOverlay.add([goBg, goTitle, goScoreLbl, goScore, goBtn, goBtnLbl]);
 
-    goBtn.on("pointerdown", () => {
+    const restart = () => {
       this.registry.set("gameover", false);
       this.registry.set("score", 0);
       this.registry.set("lives", 3);
@@ -2290,6 +2307,12 @@ class UIScene extends Phaser.Scene {
       this.gameoverOverlay.setVisible(false);
       this.scene.stop("Play");
       this.scene.start("Play");
+    };
+    goBtn.on("pointerup", restart);
+    // Fallback: any tap while overlay visible triggers restart
+    // (guards against Phaser 4 hit-test quirks on mobile/WebGPU).
+    this.input.on("pointerup", () => {
+      if (this.gameoverOverlay.visible) restart();
     });
 
     // listen to registry
@@ -2444,7 +2467,7 @@ export function mount(container: HTMLElement): () => void {
     backgroundColor: "#050b1e",
     scene: [BootScene, PlayScene, UIScene],
     scale: {
-      mode: Phaser.Scale.RESIZE,
+      mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
       width: DESIGN_W,
       height: DESIGN_H,
