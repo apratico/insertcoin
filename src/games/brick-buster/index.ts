@@ -663,16 +663,17 @@ class PlayScene extends Phaser.Scene {
 
   private spawnCapsule(x: number, y: number): void {
     const key = CAPSULE_KEYS[Math.floor(Math.random() * CAPSULE_KEYS.length)]!;
-    const cap = this.physics.add.image(x, y, `cap-${key}`);
+    // Use group.create() so the body is created once, owned by the group.
+    // Doing physics.add.image() + group.add() left the velocity unset and
+    // capsules hung in mid-air.
+    const cap = this.capsules.create(x, y, `cap-${key}`) as Phaser.Physics.Arcade.Image;
     cap.setData("kind", key);
     cap.setDepth(7);
     const body = cap.body as Phaser.Physics.Arcade.Body;
     body.allowGravity = false;
-    // slight horizontal drift + downward fall
+    body.setCollideWorldBounds(false);
     const vx = (Math.random() - 0.5) * 60;
     body.setVelocity(vx, CAPSULE_FALL_SPEED);
-    this.capsules.add(cap);
-    // gentle wobble while falling
     this.tweens.add({
       targets: cap,
       angle: { from: -8, to: 8 },
