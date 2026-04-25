@@ -35,6 +35,7 @@ const PADDLE_Y = DESIGN_H - 48;
 const PADDLE_H = 11;
 const PADDLE_W_NORMAL = 70;
 const PADDLE_W_WIDE = 110;
+const PADDLE_W_SHORT = 48;
 const BALL_R = 7;
 const BALL_SPEED_BASE = 380;
 const BALL_SPEED_MAX = 580;
@@ -47,7 +48,8 @@ const CAPSULE_H = 12;
 const CAPSULE_FALL_SPEED = 200;
 const CAPSULE_DROP_CHANCE = 0.22;
 const MAX_CAPSULES_ON_SCREEN = 3;
-const LASER_DURATION_MS = 15000;
+const LASER_DURATION_MS = 10000;
+const LASER_MAX_SHOTS = 30;
 const LASER_RPM = 360;
 const LASER_SPEED = 800;
 
@@ -62,7 +64,8 @@ const CAPSULES: Record<string, CapsuleType> = {
   C: { letter: "C", fill: "#3eea4c", rim: "#1d8b25", desc: "CATCH"       },
   L: { letter: "L", fill: "#ff3b58", rim: "#9c1a2a", desc: "LASER"       },
   D: { letter: "D", fill: "#33d8ff", rim: "#1a87a0", desc: "TRIPLE BALL" },
-  F: { letter: "F", fill: "#ff8a2c", rim: "#a0531a", desc: "FAST BALL"   },
+  F: { letter: "F", fill: "#ff8a2c", rim: "#a0531a", desc: "FAST BALL"   },  // negative
+  R: { letter: "R", fill: "#ff44aa", rim: "#7a1144", desc: "SHORT PADDLE" },// negative
   P: { letter: "P", fill: "#ffffff", rim: "#888888", desc: "+1 LIFE"     },
 };
 const CAPSULE_KEYS = Object.keys(CAPSULES);
@@ -164,6 +167,42 @@ const LAYOUTS: string[][] = [
     "CCCCCCCCCCCCC",
     "OOOOOOOOOOOOO",
   ],
+  // R9 — gold maze, must aim through gaps
+  [
+    "X.X.X.X.X.X.X",
+    "RRRRRRRRRRRRR",
+    "X.X.X.X.X.X.X",
+    "BBBBBBBBBBBBB",
+    "X.X.X.X.X.X.X",
+    "PPPPPPPPPPPPP",
+    "X.X.X.X.X.X.X",
+  ],
+  // R10 — silver fortress with single weak point
+  [
+    "SSSSSXSXSSSSS",
+    "SSSSSSPSSSSSS",
+    "SSSSSXSXSSSSS",
+    "SSSSSSSSSSSSS",
+  ],
+  // R11 — twin pillars + silver waves
+  [
+    "X.SSSSSSSSS.X",
+    "X.RRRRRRRRR.X",
+    "X.SSSSSSSSS.X",
+    "X.BBBBBBBBB.X",
+    "X.SSSSSSSSS.X",
+    "X.PPPPPPPPP.X",
+  ],
+  // R12 — gold gauntlet, mostly indestructible cover
+  [
+    "XXXXX.X.XXXXX",
+    "XSSSSSSSSSSSX",
+    "XSPPPPPPPPPSX",
+    "XSPYYYYYYYPSX",
+    "XSPPPPPPPPPSX",
+    "XSSSSSSSSSSSX",
+    "XXXXX.X.XXXXX",
+  ],
 ];
 
 // ─── BootScene ────────────────────────────────────────────────────────────────
@@ -229,7 +268,7 @@ class BootScene extends Phaser.Scene {
   }
 
   private makePaddleTextures(): void {
-    for (const [key, w] of [["paddle-normal", PADDLE_W_NORMAL], ["paddle-wide", PADDLE_W_WIDE]] as const) {
+    for (const [key, w] of [["paddle-normal", PADDLE_W_NORMAL], ["paddle-wide", PADDLE_W_WIDE], ["paddle-short", PADDLE_W_SHORT]] as const) {
       const ct = this.textures.createCanvas(key, w, PADDLE_H);
       if (!ct) continue;
       const ctx = ct.context;
@@ -357,9 +396,11 @@ class PlayScene extends Phaser.Scene {
 
   // power-ups state
   private isWide = false;
+  private isShort = false;
   private catchMode = false;
   private laserMode = false;
   private laserTimer: Phaser.Time.TimerEvent | null = null;
+  private laserShotsLeft = 0;
   private lastLaserShotMs = 0;
   private speedMult = 1;
 
@@ -377,9 +418,11 @@ class PlayScene extends Phaser.Scene {
     this.paddleTargetX = DESIGN_W / 2;
     this.bricksRemaining = 0;
     this.isWide = false;
+    this.isShort = false;
     this.catchMode = false;
     this.laserMode = false;
     this.laserTimer = null;
+    this.laserShotsLeft = 0;
     this.lastLaserShotMs = 0;
     this.speedMult = 1;
     this.extraBalls = [];
@@ -703,11 +746,16 @@ class PlayScene extends Phaser.Scene {
   private applyPowerUp(kind: string): void {
     switch (kind) {
       case "E": {
-        if (!this.isWide) {
-          this.isWide = true;
-          this.paddle.setTexture("paddle-wide");
-        }
-        // catch + laser exclusive with each other but not with width
+        // wide cancels short
+        this.isShort = false;
+        this.isWide = true;
+        this.paddle.setTexture("paddle-wide");
+        break;
+      }
+      case "R": {
+        this.isWide = false;
+        this.isShort = true;
+        this.paddle.setTexture("paddle-short");
         break;
       }
       case "C": {
@@ -718,11 +766,9 @@ class PlayScene extends Phaser.Scene {
       case "L": {
         this.laserMode = true;
         this.catchMode = false;
+        this.laserShotsLeft = LASER_MAX_SHOTS;
         if (this.laserTimer) this.laserTimer.remove();
-        this.laserTimer = this.time.delayedCall(LASER_DURATION_MS, () => {
-          this.laserMode = false;
-          this.laserTimer = null;
-        });
+        this.laserTimer = this.time.delayedCall(LASER_DURATION_MS, () => this.cancelLaser());
         break;
       }
       case "D": {
@@ -758,6 +804,7 @@ class PlayScene extends Phaser.Scene {
 
   private cancelLaser(): void {
     this.laserMode = false;
+    this.laserShotsLeft = 0;
     if (this.laserTimer) { this.laserTimer.remove(); this.laserTimer = null; }
   }
 
@@ -765,6 +812,7 @@ class PlayScene extends Phaser.Scene {
 
   private fireLasers(): void {
     if (!this.laserMode) return;
+    if (this.laserShotsLeft <= 0) { this.cancelLaser(); return; }
     const interval = 60000 / LASER_RPM;
     if (this.time.now - this.lastLaserShotMs < interval) return;
     this.lastLaserShotMs = this.time.now;
@@ -781,6 +829,8 @@ class PlayScene extends Phaser.Scene {
       body.setVelocity(0, -LASER_SPEED);
     }
     playSfx("shoot");
+    this.laserShotsLeft -= 2; // twin barrels = 2 shots per tap
+    if (this.laserShotsLeft <= 0) this.cancelLaser();
   }
 
   private onLaserHitBrick(laser: Phaser.Physics.Arcade.Image, brick: Phaser.Physics.Arcade.Image): void {
@@ -858,7 +908,7 @@ class PlayScene extends Phaser.Scene {
 
     this.time.delayedCall(900, () => {
       // reset paddle width + cancel laser between rounds
-      if (this.isWide) { this.isWide = false; this.paddle.setTexture("paddle-normal"); }
+      if (this.isWide || this.isShort) { this.isWide = false; this.isShort = false; this.paddle.setTexture("paddle-normal"); }
       this.cancelLaser();
       this.catchMode = false;
       this.speedMult = 1;
@@ -919,6 +969,7 @@ class PlayScene extends Phaser.Scene {
     this.ballOnPaddle = true;
     this.paddleTargetX = DESIGN_W / 2;
     this.isWide = false;
+    this.isShort = false;
     this.paddle.setTexture("paddle-normal");
     this.cancelLaser();
     this.catchMode = false;
