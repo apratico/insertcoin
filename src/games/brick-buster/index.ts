@@ -41,6 +41,31 @@ const BALL_SPEED_MAX = 580;
 const BALL_SPEED_PER_ROUND = 12;
 const MAX_BOUNCE_ANGLE = 65; // degrees from vertical at paddle edges
 
+// ─── capsules (Arkanoid-canon power-ups) ──────────────────────────────────────
+const CAPSULE_W = 22;
+const CAPSULE_H = 12;
+const CAPSULE_FALL_SPEED = 110;
+const CAPSULE_DROP_CHANCE = 0.13;
+const LASER_DURATION_MS = 15000;
+const LASER_RPM = 360;
+const LASER_SPEED = 800;
+
+interface CapsuleType {
+  letter: string;        // single-letter label drawn on the pill
+  fill: string;
+  rim: string;
+  desc: string;          // banner text on pickup
+}
+const CAPSULES: Record<string, CapsuleType> = {
+  E: { letter: "E", fill: "#3b88ff", rim: "#1a448c", desc: "WIDE PADDLE" },
+  C: { letter: "C", fill: "#3eea4c", rim: "#1d8b25", desc: "CATCH"       },
+  L: { letter: "L", fill: "#ff3b58", rim: "#9c1a2a", desc: "LASER"       },
+  D: { letter: "D", fill: "#33d8ff", rim: "#1a87a0", desc: "TRIPLE BALL" },
+  F: { letter: "F", fill: "#ff8a2c", rim: "#a0531a", desc: "FAST BALL"   },
+  P: { letter: "P", fill: "#ffffff", rim: "#888888", desc: "+1 LIFE"     },
+};
+const CAPSULE_KEYS = Object.keys(CAPSULES);
+
 // ─── bricks ───────────────────────────────────────────────────────────────────
 const GRID_COLS = 13;
 const BRICK_GAP = 2;
@@ -150,8 +175,56 @@ class BootScene extends Phaser.Scene {
     this.makeBallTexture();
     this.makeBrickTextures();
     this.makeParticleTexture();
+    this.makeCapsuleTextures();
+    this.makeLaserTexture();
     this.scene.start("Play");
     this.scene.launch("UI");
+  }
+
+  private makeCapsuleTextures(): void {
+    for (const [key, def] of Object.entries(CAPSULES)) {
+      const ct = this.textures.createCanvas(`cap-${key}`, CAPSULE_W, CAPSULE_H);
+      if (!ct) continue;
+      const ctx = ct.context;
+      // pill body
+      const g = ctx.createLinearGradient(0, 0, 0, CAPSULE_H);
+      g.addColorStop(0, def.fill);
+      g.addColorStop(1, def.rim);
+      ctx.fillStyle = g;
+      const r = CAPSULE_H / 2;
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.lineTo(CAPSULE_W - r, 0);
+      ctx.arc(CAPSULE_W - r, r, r, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(r, CAPSULE_H);
+      ctx.arc(r, r, r, Math.PI / 2, -Math.PI / 2);
+      ctx.closePath();
+      ctx.fill();
+      // bright rim
+      ctx.strokeStyle = "rgba(255,255,255,0.65)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // letter
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 9px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(def.letter, CAPSULE_W / 2, CAPSULE_H / 2 + 0.5);
+      ct.refresh();
+    }
+  }
+
+  private makeLaserTexture(): void {
+    const ct = this.textures.createCanvas("laser", 3, 12);
+    if (!ct) return;
+    const ctx = ct.context;
+    const g = ctx.createLinearGradient(0, 0, 0, 12);
+    g.addColorStop(0, "#ffffff");
+    g.addColorStop(0.4, "#ff66ff");
+    g.addColorStop(1, "#aa1166");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 3, 12);
+    ct.refresh();
   }
 
   private makePaddleTextures(): void {
@@ -268,14 +341,26 @@ class PlayScene extends Phaser.Scene {
   private readonly COMBO_WINDOW = 1100;
 
   private paddle!: Phaser.Physics.Arcade.Image;
-  private ball!: Phaser.Physics.Arcade.Image;
+  private ball!: Phaser.Physics.Arcade.Image;          // primary ball
+  private extraBalls: Phaser.Physics.Arcade.Image[] = []; // multi-ball extras
   private bricks!: Phaser.Physics.Arcade.StaticGroup;
+  private capsules!: Phaser.Physics.Arcade.Group;
+  private lasers!: Phaser.Physics.Arcade.Group;
   private particles!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private capsuleSpawned = false; // arcade rule: 1 capsule on screen at a time
 
   private ballOnPaddle = true;
   private paddleTargetX = DESIGN_W / 2;
   private bricksRemaining = 0;
   private inited = false;
+
+  // power-ups state
+  private isWide = false;
+  private catchMode = false;
+  private laserMode = false;
+  private laserTimer: Phaser.Time.TimerEvent | null = null;
+  private lastLaserShotMs = 0;
+  private speedMult = 1;
 
   constructor() { super({ key: "Play" }); }
 
@@ -290,6 +375,14 @@ class PlayScene extends Phaser.Scene {
     this.ballOnPaddle = true;
     this.paddleTargetX = DESIGN_W / 2;
     this.bricksRemaining = 0;
+    this.isWide = false;
+    this.catchMode = false;
+    this.laserMode = false;
+    this.laserTimer = null;
+    this.lastLaserShotMs = 0;
+    this.speedMult = 1;
+    this.extraBalls = [];
+    this.capsuleSpawned = false;
 
     const W = DESIGN_W;
     const H = DESIGN_H;
@@ -308,17 +401,14 @@ class PlayScene extends Phaser.Scene {
     this.physics.world.setBounds(FIELD_LEFT, FIELD_TOP, FIELD_RIGHT - FIELD_LEFT, H - FIELD_TOP);
 
     this.bricks = this.physics.add.staticGroup();
+    this.capsules = this.physics.add.group();
+    this.lasers = this.physics.add.group({ maxSize: 16 });
 
     this.paddle = this.physics.add.image(W / 2, PADDLE_Y, "paddle-normal").setImmovable();
     this.paddle.setDepth(5);
     (this.paddle.body as Phaser.Physics.Arcade.Body).allowGravity = false;
 
-    this.ball = this.physics.add.image(W / 2, PADDLE_Y - PADDLE_H / 2 - BALL_R, "ball")
-      .setCollideWorldBounds(true)
-      .setBounce(1)
-      .setCircle(BALL_R, 2, 2);  // center the circle hitbox inside the haloed texture
-    this.ball.setDepth(6);
-    (this.ball.body as Phaser.Physics.Arcade.Body).allowGravity = false;
+    this.ball = this.spawnBall(W / 2, PADDLE_Y - PADDLE_H / 2 - BALL_R, 0, 0);
 
     this.particles = this.add.particles(0, 0, "particle", {
       speed: { min: 60, max: 220 },
@@ -330,8 +420,14 @@ class PlayScene extends Phaser.Scene {
       frequency: -1,
     }).setDepth(9);
 
-    this.physics.add.collider(this.ball, this.paddle, this.onBallPaddle, undefined, this);
-    this.physics.add.collider(this.ball, this.bricks, this.onBallBrick, undefined, this);
+    // capsule pickup
+    this.physics.add.overlap(this.paddle, this.capsules, (_p, capObj) => {
+      this.onCapsulePickup(capObj as Phaser.Physics.Arcade.Image);
+    });
+    // laser hits brick
+    this.physics.add.overlap(this.lasers, this.bricks, (laserObj, brickObj) => {
+      this.onLaserHitBrick(laserObj as Phaser.Physics.Arcade.Image, brickObj as Phaser.Physics.Arcade.Image);
+    });
 
     this.buildRound(this.currentRound);
 
@@ -340,7 +436,11 @@ class PlayScene extends Phaser.Scene {
     });
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       this.paddleTargetX = this.toDesignX(p);
-      if (this.ballOnPaddle) this.launchBall();
+      if (this.ballOnPaddle) {
+        this.launchBall();
+      } else if (this.laserMode) {
+        this.fireLasers();
+      }
     });
 
     const cursors = this.input.keyboard?.createCursorKeys();
@@ -406,9 +506,41 @@ class PlayScene extends Phaser.Scene {
     return Phaser.Math.Clamp(p.x, FIELD_LEFT + this.paddle.displayWidth / 2, FIELD_RIGHT - this.paddle.displayWidth / 2);
   }
 
+  // ─── ball helpers ───────────────────────────────────────────────────────────
+
+  private spawnBall(x: number, y: number, vx: number, vy: number): Phaser.Physics.Arcade.Image {
+    const b = this.physics.add.image(x, y, "ball")
+      .setCollideWorldBounds(true)
+      .setBounce(1)
+      .setCircle(BALL_R, 2, 2);
+    b.setDepth(6);
+    (b.body as Phaser.Physics.Arcade.Body).allowGravity = false;
+    b.setVelocity(vx, vy);
+    this.physics.add.collider(b, this.paddle, this.onBallPaddle, undefined, this);
+    this.physics.add.collider(b, this.bricks, this.onBallBrick, undefined, this);
+    return b;
+  }
+
+  private forEachBall(fn: (ball: Phaser.Physics.Arcade.Image) => void): void {
+    if (this.ball) fn(this.ball);
+    for (const b of this.extraBalls) fn(b);
+  }
+
+  private removeExtraBall(b: Phaser.Physics.Arcade.Image): void {
+    const i = this.extraBalls.indexOf(b);
+    if (i >= 0) this.extraBalls.splice(i, 1);
+    b.destroy();
+  }
+
   private buildRound(round: number): void {
     this.bricks.clear(true, true);
     this.bricksRemaining = 0;
+    // also clear any in-flight capsules/lasers/extras (round transition)
+    this.capsules.clear(true, true);
+    this.lasers.clear(true, true);
+    for (const b of this.extraBalls.slice()) b.destroy();
+    this.extraBalls.length = 0;
+    this.capsuleSpawned = false;
 
     const layout = LAYOUTS[(round - 1) % LAYOUTS.length]!;
     for (let r = 0; r < layout.length; r++) {
@@ -439,22 +571,29 @@ class PlayScene extends Phaser.Scene {
   }
 
   private ballSpeed(): number {
-    return Math.min(BALL_SPEED_MAX, BALL_SPEED_BASE + (this.currentRound - 1) * BALL_SPEED_PER_ROUND);
+    const base = Math.min(BALL_SPEED_MAX, BALL_SPEED_BASE + (this.currentRound - 1) * BALL_SPEED_PER_ROUND);
+    return base * this.speedMult;
   }
 
-  private onBallPaddle = (): void => {
+  private onBallPaddle: ArcadePhysicsCallback = (ballObj, _paddle) => {
     if (this.dead) return;
-    // skip while ball parked on paddle (collider fires every tick otherwise,
-    // spamming the bounce SFX as long as the ball touches the paddle)
     if (this.ballOnPaddle) return;
+    const ball = ballObj as Phaser.Physics.Arcade.Image;
     // skeleton-style manual reflection by paddle-relative offset
-    const diff = this.ball.x - this.paddle.x;
+    const diff = ball.x - this.paddle.x;
     const half = this.paddle.displayWidth / 2;
     const norm = Phaser.Math.Clamp(diff / half, -1, 1);
+    // Catch capsule effect: stick primary ball to paddle (only if not all balls)
+    if (this.catchMode && ball === this.ball && this.extraBalls.length === 0) {
+      this.ball.setVelocity(0, 0);
+      this.ballOnPaddle = true;
+      playSfx("tap");
+      return;
+    }
     const angleDeg = norm * MAX_BOUNCE_ANGLE;
     const angleRad = (angleDeg - 90) * Math.PI / 180;
     const speed = this.ballSpeed();
-    this.ball.setVelocity(Math.cos(angleRad) * speed, Math.sin(angleRad) * speed);
+    ball.setVelocity(Math.cos(angleRad) * speed, Math.sin(angleRad) * speed);
     playSfx("bounce");
     this.comboCount = 0;
   };
@@ -498,8 +637,153 @@ class PlayScene extends Phaser.Scene {
 
     brick.disableBody(true, true);
     this.bricksRemaining--;
+    // capsule drop (arcade rule: 1 on screen at a time)
+    if (!this.capsuleSpawned && Math.random() < CAPSULE_DROP_CHANCE) {
+      this.spawnCapsule(brick.x, brick.y);
+    }
     if (this.bricksRemaining <= 0) this.onRoundCleared();
   };
+
+  // ─── capsules ───────────────────────────────────────────────────────────────
+
+  private spawnCapsule(x: number, y: number): void {
+    const key = CAPSULE_KEYS[Math.floor(Math.random() * CAPSULE_KEYS.length)]!;
+    const cap = this.physics.add.image(x, y, `cap-${key}`);
+    cap.setData("kind", key);
+    cap.setDepth(7);
+    (cap.body as Phaser.Physics.Arcade.Body).allowGravity = false;
+    cap.setVelocity(0, CAPSULE_FALL_SPEED);
+    this.capsules.add(cap);
+    this.capsuleSpawned = true;
+  }
+
+  private onCapsulePickup(cap: Phaser.Physics.Arcade.Image): void {
+    if (!cap.active) return;
+    const kind = cap.getData("kind") as string;
+    const def = CAPSULES[kind];
+    cap.destroy();
+    this.capsuleSpawned = false;
+    if (!def) return;
+    playSfx("coin");
+    if (navigator.vibrate) navigator.vibrate(20);
+    this.applyPowerUp(kind);
+    this.scene.get("UI").events.emit("brickbuster:banner", {
+      text: def.desc,
+      sub: `[${def.letter}] CAPSULE`,
+      color: def.fill,
+    });
+  }
+
+  private applyPowerUp(kind: string): void {
+    switch (kind) {
+      case "E": {
+        if (!this.isWide) {
+          this.isWide = true;
+          this.paddle.setTexture("paddle-wide");
+        }
+        // catch + laser exclusive with each other but not with width
+        break;
+      }
+      case "C": {
+        this.catchMode = true;
+        this.cancelLaser();
+        break;
+      }
+      case "L": {
+        this.laserMode = true;
+        this.catchMode = false;
+        if (this.laserTimer) this.laserTimer.remove();
+        this.laserTimer = this.time.delayedCall(LASER_DURATION_MS, () => {
+          this.laserMode = false;
+          this.laserTimer = null;
+        });
+        break;
+      }
+      case "D": {
+        // triple ball: spawn 2 extras at primary ball position with offset velocities
+        const src = this.ball;
+        if (this.ballOnPaddle) {
+          // launch primary first so the spawn isn't all stuck on paddle
+          this.launchBall();
+        }
+        const sv = src.body!.velocity;
+        const baseSpd = Math.max(this.ballSpeed(), Math.sqrt(sv.x * sv.x + sv.y * sv.y));
+        const baseAng = Math.atan2(sv.y, sv.x);
+        for (const off of [-0.5, 0.5]) {
+          const a = baseAng + off;
+          const eb = this.spawnBall(src.x, src.y, Math.cos(a) * baseSpd, Math.sin(a) * baseSpd);
+          this.extraBalls.push(eb);
+        }
+        break;
+      }
+      case "F": {
+        this.speedMult = Math.min(1.5, this.speedMult + 0.25);
+        break;
+      }
+      case "P": {
+        this.playerLives = Math.min(5, this.playerLives + 1);
+        this.scene.get("UI").events.emit("brickbuster:hud", {
+          score: this.playerScore, lives: this.playerLives, round: this.currentRound,
+        });
+        break;
+      }
+    }
+  }
+
+  private cancelLaser(): void {
+    this.laserMode = false;
+    if (this.laserTimer) { this.laserTimer.remove(); this.laserTimer = null; }
+  }
+
+  // ─── lasers ─────────────────────────────────────────────────────────────────
+
+  private fireLasers(): void {
+    if (!this.laserMode) return;
+    const interval = 60000 / LASER_RPM;
+    if (this.time.now - this.lastLaserShotMs < interval) return;
+    this.lastLaserShotMs = this.time.now;
+    const xL = this.paddle.x - this.paddle.displayWidth / 2 + 4;
+    const xR = this.paddle.x + this.paddle.displayWidth / 2 - 4;
+    const y = this.paddle.y - PADDLE_H / 2 - 6;
+    for (const x of [xL, xR]) {
+      const beam = this.lasers.get(x, y, "laser") as Phaser.Physics.Arcade.Image | null;
+      if (!beam) continue;
+      beam.setActive(true).setVisible(true).setDepth(7);
+      const body = beam.body as Phaser.Physics.Arcade.Body;
+      body.reset(x, y);
+      body.setAllowGravity(false);
+      body.setVelocity(0, -LASER_SPEED);
+    }
+    playSfx("shoot");
+  }
+
+  private onLaserHitBrick(laser: Phaser.Physics.Arcade.Image, brick: Phaser.Physics.Arcade.Image): void {
+    if (!laser.active || !brick.active) return;
+    const data = brick.getData("brick") as BrickData | undefined;
+    laser.setActive(false).setVisible(false);
+    (laser.body as Phaser.Physics.Arcade.Body).reset(-100, -100);
+    if (!data || data.type === "X") {
+      playSfx("bounce");
+      return;
+    }
+    data.hp--;
+    if (data.hp > 0) {
+      brick.setTint(0xffffff);
+      this.time.delayedCall(60, () => brick.clearTint());
+      playSfx("tap");
+      return;
+    }
+    const t = BRICK_TYPES[data.type]!;
+    this.addScore(data.score);
+    this.particles.setParticleTint(Phaser.Display.Color.HexStringToColor(t.fill).color);
+    this.particles.explode(6, brick.x, brick.y);
+    brick.disableBody(true, true);
+    this.bricksRemaining--;
+    if (!this.capsuleSpawned && Math.random() < CAPSULE_DROP_CHANCE) {
+      this.spawnCapsule(brick.x, brick.y);
+    }
+    if (this.bricksRemaining <= 0) this.onRoundCleared();
+  }
 
   private addScore(pts: number): void {
     this.playerScore += pts;
@@ -547,6 +831,11 @@ class PlayScene extends Phaser.Scene {
     });
 
     this.time.delayedCall(900, () => {
+      // reset paddle width + cancel laser between rounds
+      if (this.isWide) { this.isWide = false; this.paddle.setTexture("paddle-normal"); }
+      this.cancelLaser();
+      this.catchMode = false;
+      this.speedMult = 1;
       this.ballOnPaddle = true;
       this.ball.setVelocity(0, 0);
       this.ball.setPosition(this.paddle.x, PADDLE_Y - PADDLE_H / 2 - BALL_R);
@@ -568,6 +857,11 @@ class PlayScene extends Phaser.Scene {
       this.gameOver();
       return;
     }
+    // reset paddle/effects on life lost (Arkanoid behavior)
+    if (this.isWide) { this.isWide = false; this.paddle.setTexture("paddle-normal"); }
+    this.cancelLaser();
+    this.catchMode = false;
+    this.speedMult = 1;
     this.ballOnPaddle = true;
     this.ball.setVelocity(0, 0);
     this.ball.setPosition(this.paddle.x, PADDLE_Y - PADDLE_H / 2 - BALL_R);
@@ -598,6 +892,11 @@ class PlayScene extends Phaser.Scene {
     this.comboTimer = 0;
     this.ballOnPaddle = true;
     this.paddleTargetX = DESIGN_W / 2;
+    this.isWide = false;
+    this.paddle.setTexture("paddle-normal");
+    this.cancelLaser();
+    this.catchMode = false;
+    this.speedMult = 1;
     this.paddle.setPosition(DESIGN_W / 2, PADDLE_Y);
     this.ball.setVelocity(0, 0);
     this.ball.setPosition(DESIGN_W / 2, PADDLE_Y - PADDLE_H / 2 - BALL_R);
@@ -631,13 +930,30 @@ class PlayScene extends Phaser.Scene {
     if (this.ballOnPaddle) {
       this.ball.setPosition(this.paddle.x, PADDLE_Y - PADDLE_H / 2 - BALL_R);
       this.ball.setVelocity(0, 0);
-    } else {
-      if (this.ball.y > DESIGN_H + BALL_R) this.loseBall();
-      // anti-stuck: maintain target speed + nudge near-horizontal trajectories
-      const body = this.ball.body as Phaser.Physics.Arcade.Body;
+    }
+    // primary ball drain
+    if (!this.ballOnPaddle && this.ball.y > DESIGN_H + BALL_R) {
+      // if extras alive, promote one to primary (don't lose a life)
+      if (this.extraBalls.length > 0) {
+        this.ball.destroy();
+        this.ball = this.extraBalls.shift()!;
+      } else {
+        this.loseBall();
+      }
+    }
+    // extras drain
+    for (const eb of this.extraBalls.slice()) {
+      if (eb.y > DESIGN_H + BALL_R) this.removeExtraBall(eb);
+    }
+
+    // anti-stuck on every active ball
+    const target = this.ballSpeed();
+    this.forEachBall((b) => {
+      if (this.ballOnPaddle && b === this.ball) return;
+      const body = b.body as Phaser.Physics.Arcade.Body | null;
+      if (!body) return;
       const v = body.velocity;
       const cur = Math.sqrt(v.x * v.x + v.y * v.y);
-      const target = this.ballSpeed();
       if (cur > 0 && Math.abs(cur - target) > 30) {
         const f = target / cur;
         body.setVelocity(v.x * f, v.y * f);
@@ -645,7 +961,26 @@ class PlayScene extends Phaser.Scene {
       if (Math.abs(v.y) < 30) {
         body.setVelocity(v.x, v.y < 0 ? -60 : 60);
       }
-    }
+    });
+
+    // capsule cull below playfield
+    this.capsules.getChildren().forEach((obj) => {
+      const c = obj as Phaser.Physics.Arcade.Image;
+      if (c.active && c.y > DESIGN_H + 20) {
+        c.destroy();
+        this.capsuleSpawned = false;
+      }
+    });
+    // laser cull above playfield
+    this.lasers.getChildren().forEach((obj) => {
+      const l = obj as Phaser.Physics.Arcade.Image;
+      if (l.active && l.y < FIELD_TOP - 20) {
+        l.setActive(false).setVisible(false);
+        (l.body as Phaser.Physics.Arcade.Body).reset(-100, -100);
+      }
+    });
+
+    // continuous laser auto-fire while held: skip — fire on tap (already wired)
 
     if (this.comboCount > 0 && this.time.now - this.comboTimer > this.COMBO_WINDOW) {
       this.comboCount = 0;
