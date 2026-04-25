@@ -67,7 +67,9 @@ const CAPSULES: Record<string, CapsuleType> = {
   F: { letter: "F", fill: "#ff8a2c", rim: "#a0531a", desc: "FAST BALL"   },  // negative
   R: { letter: "R", fill: "#ff44aa", rim: "#7a1144", desc: "SHORT PADDLE" },// negative
   P: { letter: "P", fill: "#ffffff", rim: "#888888", desc: "+1 LIFE"     },
+  M: { letter: "?", fill: "#ff66ff", rim: "#222244", desc: "MYSTERY"     }, // rainbow — reveals on pickup
 };
+const MYSTERY_CHANCE = 0.18; // 18% of drops are mystery instead of fixed
 const CAPSULE_KEYS = Object.keys(CAPSULES);
 
 // ─── bricks ───────────────────────────────────────────────────────────────────
@@ -226,20 +228,38 @@ class BootScene extends Phaser.Scene {
       const ct = this.textures.createCanvas(`cap-${key}`, CAPSULE_W, CAPSULE_H);
       if (!ct) continue;
       const ctx = ct.context;
-      // pill body
-      const g = ctx.createLinearGradient(0, 0, 0, CAPSULE_H);
-      g.addColorStop(0, def.fill);
-      g.addColorStop(1, def.rim);
-      ctx.fillStyle = g;
       const r = CAPSULE_H / 2;
-      ctx.beginPath();
-      ctx.moveTo(r, 0);
-      ctx.lineTo(CAPSULE_W - r, 0);
-      ctx.arc(CAPSULE_W - r, r, r, -Math.PI / 2, Math.PI / 2);
-      ctx.lineTo(r, CAPSULE_H);
-      ctx.arc(r, r, r, Math.PI / 2, -Math.PI / 2);
-      ctx.closePath();
-      ctx.fill();
+      // pill outline path
+      const buildPath = (): void => {
+        ctx.beginPath();
+        ctx.moveTo(r, 0);
+        ctx.lineTo(CAPSULE_W - r, 0);
+        ctx.arc(CAPSULE_W - r, r, r, -Math.PI / 2, Math.PI / 2);
+        ctx.lineTo(r, CAPSULE_H);
+        ctx.arc(r, r, r, Math.PI / 2, -Math.PI / 2);
+        ctx.closePath();
+      };
+      // mystery: rainbow horizontal gradient
+      if (key === "M") {
+        const g = ctx.createLinearGradient(0, 0, CAPSULE_W, 0);
+        g.addColorStop(0.00, "#ff3b58");
+        g.addColorStop(0.18, "#ff8a2c");
+        g.addColorStop(0.36, "#ffd83a");
+        g.addColorStop(0.54, "#3eea4c");
+        g.addColorStop(0.72, "#33d8ff");
+        g.addColorStop(0.86, "#3b88ff");
+        g.addColorStop(1.00, "#a04bff");
+        ctx.fillStyle = g;
+        buildPath();
+        ctx.fill();
+      } else {
+        const g = ctx.createLinearGradient(0, 0, 0, CAPSULE_H);
+        g.addColorStop(0, def.fill);
+        g.addColorStop(1, def.rim);
+        ctx.fillStyle = g;
+        buildPath();
+        ctx.fill();
+      }
       // bright rim
       ctx.strokeStyle = "rgba(255,255,255,0.65)";
       ctx.lineWidth = 1;
@@ -705,7 +725,11 @@ class PlayScene extends Phaser.Scene {
   // ─── capsules ───────────────────────────────────────────────────────────────
 
   private spawnCapsule(x: number, y: number): void {
-    const key = CAPSULE_KEYS[Math.floor(Math.random() * CAPSULE_KEYS.length)]!;
+    // ~18% rainbow mystery; otherwise random non-mystery capsule
+    const fixedKeys = CAPSULE_KEYS.filter((k) => k !== "M");
+    const key = Math.random() < MYSTERY_CHANCE
+      ? "M"
+      : fixedKeys[Math.floor(Math.random() * fixedKeys.length)]!;
     // Use group.create() so the body is created once, owned by the group.
     // Doing physics.add.image() + group.add() left the velocity unset and
     // capsules hung in mid-air.
@@ -729,16 +753,23 @@ class PlayScene extends Phaser.Scene {
 
   private onCapsulePickup(cap: Phaser.Physics.Arcade.Image): void {
     if (!cap.active) return;
-    const kind = cap.getData("kind") as string;
-    const def = CAPSULES[kind];
+    let kind = cap.getData("kind") as string;
     cap.destroy();
-    if (!def) return;
+    if (!CAPSULES[kind]) return;
+    // mystery: roll a real effect now
+    let mystery = false;
+    if (kind === "M") {
+      const pool = CAPSULE_KEYS.filter((k) => k !== "M");
+      kind = pool[Math.floor(Math.random() * pool.length)]!;
+      mystery = true;
+    }
+    const def = CAPSULES[kind]!;
     playSfx("coin");
     if (navigator.vibrate) navigator.vibrate(20);
     this.applyPowerUp(kind);
     this.scene.get("UI").events.emit("brickbuster:banner", {
       text: def.desc,
-      sub: `[${def.letter}] CAPSULE`,
+      sub: mystery ? `[?] MYSTERY → [${def.letter}]` : `[${def.letter}] CAPSULE`,
       color: def.fill,
     });
   }
