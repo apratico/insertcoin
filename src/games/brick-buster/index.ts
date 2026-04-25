@@ -294,7 +294,13 @@ class PlayScene extends Phaser.Scene {
     const W = DESIGN_W;
     const H = DESIGN_H;
 
-    const bezel = this.add.graphics().setDepth(2);
+    // playfield background — depth -10 so EVERY game object renders above
+    const bg = this.add.graphics().setDepth(-10);
+    bg.fillStyle(0x080014, 1);
+    bg.fillRect(FIELD_LEFT, FIELD_TOP, FIELD_RIGHT - FIELD_LEFT, DESIGN_H - FIELD_TOP);
+
+    // bezel frame — depth 0 (covers walls only, not playfield interior)
+    const bezel = this.add.graphics().setDepth(0);
     this.drawBezel(bezel);
 
     // top + sides bound, bottom OPEN (drain)
@@ -378,16 +384,17 @@ class PlayScene extends Phaser.Scene {
 
   private drawBezel(g: Phaser.GameObjects.Graphics): void {
     g.clear();
-    g.fillStyle(0x080014, 1);
-    g.fillRect(FIELD_LEFT, FIELD_TOP, FIELD_RIGHT - FIELD_LEFT, DESIGN_H - FIELD_TOP);
+    // chrome frame — left, right, top only (bottom open = drain)
     g.fillStyle(0x222244, 1);
     g.fillRect(0, 0, BEZEL_THICK, DESIGN_H);
     g.fillRect(DESIGN_W - BEZEL_THICK, 0, BEZEL_THICK, DESIGN_H);
     g.fillRect(0, 0, DESIGN_W, BEZEL_THICK);
+    // inner highlight rim
     g.fillStyle(0x4488cc, 0.5);
     g.fillRect(BEZEL_THICK - 2, BEZEL_THICK, 1, DESIGN_H - BEZEL_THICK);
     g.fillRect(DESIGN_W - BEZEL_THICK + 1, BEZEL_THICK, 1, DESIGN_H - BEZEL_THICK);
     g.fillRect(BEZEL_THICK, BEZEL_THICK - 2, DESIGN_W - BEZEL_THICK * 2, 1);
+    // rivets
     g.fillStyle(0xffcc33, 1);
     for (let y = 30; y < DESIGN_H - 30; y += 60) {
       g.fillCircle(BEZEL_THICK / 2, y, 2);
@@ -437,6 +444,9 @@ class PlayScene extends Phaser.Scene {
 
   private onBallPaddle = (): void => {
     if (this.dead) return;
+    // skip while ball parked on paddle (collider fires every tick otherwise,
+    // spamming the bounce SFX as long as the ball touches the paddle)
+    if (this.ballOnPaddle) return;
     // skeleton-style manual reflection by paddle-relative offset
     const diff = this.ball.x - this.paddle.x;
     const half = this.paddle.displayWidth / 2;
