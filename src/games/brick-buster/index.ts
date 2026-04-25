@@ -44,8 +44,9 @@ const MAX_BOUNCE_ANGLE = 65; // degrees from vertical at paddle edges
 // ─── capsules (Arkanoid-canon power-ups) ──────────────────────────────────────
 const CAPSULE_W = 22;
 const CAPSULE_H = 12;
-const CAPSULE_FALL_SPEED = 110;
-const CAPSULE_DROP_CHANCE = 0.13;
+const CAPSULE_FALL_SPEED = 200;
+const CAPSULE_DROP_CHANCE = 0.22;
+const MAX_CAPSULES_ON_SCREEN = 3;
 const LASER_DURATION_MS = 15000;
 const LASER_RPM = 360;
 const LASER_SPEED = 800;
@@ -347,7 +348,7 @@ class PlayScene extends Phaser.Scene {
   private capsules!: Phaser.Physics.Arcade.Group;
   private lasers!: Phaser.Physics.Arcade.Group;
   private particles!: Phaser.GameObjects.Particles.ParticleEmitter;
-  private capsuleSpawned = false; // arcade rule: 1 capsule on screen at a time
+  private ballTrail!: Phaser.GameObjects.Particles.ParticleEmitter;
 
   private ballOnPaddle = true;
   private paddleTargetX = DESIGN_W / 2;
@@ -382,7 +383,6 @@ class PlayScene extends Phaser.Scene {
     this.lastLaserShotMs = 0;
     this.speedMult = 1;
     this.extraBalls = [];
-    this.capsuleSpawned = false;
 
     const W = DESIGN_W;
     const H = DESIGN_H;
@@ -419,6 +419,16 @@ class PlayScene extends Phaser.Scene {
       quantity: 0,
       frequency: -1,
     }).setDepth(9);
+
+    // ball trail — soft cyan sparkle following primary ball
+    this.ballTrail = this.add.particles(0, 0, "particle", {
+      speed: 0,
+      scale: { start: 0.9, end: 0 },
+      alpha: { start: 0.7, end: 0 },
+      lifespan: 220,
+      frequency: 16,
+      tint: [0x88ddff, 0xffffff],
+    }).setDepth(5).startFollow(this.ball);
 
     // capsule pickup
     this.physics.add.overlap(this.paddle, this.capsules, (_p, capObj) => {
@@ -540,7 +550,6 @@ class PlayScene extends Phaser.Scene {
     this.lasers.clear(true, true);
     for (const b of this.extraBalls.slice()) b.destroy();
     this.extraBalls.length = 0;
-    this.capsuleSpawned = false;
 
     const layout = LAYOUTS[(round - 1) % LAYOUTS.length]!;
     for (let r = 0; r < layout.length; r++) {
@@ -564,7 +573,8 @@ class PlayScene extends Phaser.Scene {
     if (this.dead) return;
     this.ballOnPaddle = false;
     const speed = this.ballSpeed();
-    const angle = (Math.random() - 0.5) * 0.4 - Math.PI / 2; // -90° ± ~12°
+    // wider launch variety so two runs feel different
+    const angle = (Math.random() - 0.5) * 0.85 - Math.PI / 2; // -90° ± ~24°
     this.ball.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
     playSfx("go");
     if (navigator.vibrate) navigator.vibrate(8);
@@ -637,12 +647,17 @@ class PlayScene extends Phaser.Scene {
 
     brick.disableBody(true, true);
     this.bricksRemaining--;
-    // capsule drop (arcade rule: 1 on screen at a time)
-    if (!this.capsuleSpawned && Math.random() < CAPSULE_DROP_CHANCE) {
+    if (this.activeCapsuleCount() < MAX_CAPSULES_ON_SCREEN && Math.random() < CAPSULE_DROP_CHANCE) {
       this.spawnCapsule(brick.x, brick.y);
     }
     if (this.bricksRemaining <= 0) this.onRoundCleared();
   };
+
+  private activeCapsuleCount(): number {
+    let n = 0;
+    this.capsules.getChildren().forEach((c) => { if ((c as Phaser.Physics.Arcade.Image).active) n++; });
+    return n;
+  }
 
   // ─── capsules ───────────────────────────────────────────────────────────────
 
@@ -651,10 +666,21 @@ class PlayScene extends Phaser.Scene {
     const cap = this.physics.add.image(x, y, `cap-${key}`);
     cap.setData("kind", key);
     cap.setDepth(7);
-    (cap.body as Phaser.Physics.Arcade.Body).allowGravity = false;
-    cap.setVelocity(0, CAPSULE_FALL_SPEED);
+    const body = cap.body as Phaser.Physics.Arcade.Body;
+    body.allowGravity = false;
+    // slight horizontal drift + downward fall
+    const vx = (Math.random() - 0.5) * 60;
+    body.setVelocity(vx, CAPSULE_FALL_SPEED);
     this.capsules.add(cap);
-    this.capsuleSpawned = true;
+    // gentle wobble while falling
+    this.tweens.add({
+      targets: cap,
+      angle: { from: -8, to: 8 },
+      duration: 380,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
   }
 
   private onCapsulePickup(cap: Phaser.Physics.Arcade.Image): void {
@@ -662,7 +688,6 @@ class PlayScene extends Phaser.Scene {
     const kind = cap.getData("kind") as string;
     const def = CAPSULES[kind];
     cap.destroy();
-    this.capsuleSpawned = false;
     if (!def) return;
     playSfx("coin");
     if (navigator.vibrate) navigator.vibrate(20);
@@ -779,7 +804,7 @@ class PlayScene extends Phaser.Scene {
     this.particles.explode(6, brick.x, brick.y);
     brick.disableBody(true, true);
     this.bricksRemaining--;
-    if (!this.capsuleSpawned && Math.random() < CAPSULE_DROP_CHANCE) {
+    if (this.activeCapsuleCount() < MAX_CAPSULES_ON_SCREEN && Math.random() < CAPSULE_DROP_CHANCE) {
       this.spawnCapsule(brick.x, brick.y);
     }
     if (this.bricksRemaining <= 0) this.onRoundCleared();
@@ -937,6 +962,7 @@ class PlayScene extends Phaser.Scene {
       if (this.extraBalls.length > 0) {
         this.ball.destroy();
         this.ball = this.extraBalls.shift()!;
+        this.ballTrail.startFollow(this.ball);
       } else {
         this.loseBall();
       }
@@ -968,7 +994,6 @@ class PlayScene extends Phaser.Scene {
       const c = obj as Phaser.Physics.Arcade.Image;
       if (c.active && c.y > DESIGN_H + 20) {
         c.destroy();
-        this.capsuleSpawned = false;
       }
     });
     // laser cull above playfield
