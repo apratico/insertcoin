@@ -222,6 +222,17 @@ export const GAMES: GameEntry[] = [
     orientation: "portrait",
     load: () => import("./drop-stack/index.js"),
   },
+  {
+    id: "peg-drop",
+    title: "Peg Drop",
+    tagline: "Drop. Bounce. Win big.",
+    palette: { bg: "#16082a", fg: "#ffffff", accent: "#ff44ff" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    orientation: "portrait",
+    load: () => import("./peg-drop/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

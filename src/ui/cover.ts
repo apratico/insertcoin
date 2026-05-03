@@ -972,6 +972,7 @@ function artBody(entry: GameEntry): string {
       case "block-fit": return blockFitArt(id);
       case "star-void": return starVoidArt(id);
       case "drop-stack": return dropStackArt(id);
+      case "peg-drop": return pegDropArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1669,6 +1670,59 @@ function dropStackArt(id: string): string {
     </g>
   `;
   return bg + "\n  " + jar + "\n  " + spark + "\n  " + stack + "\n  " + traj + "\n  " + dropping;
+}
+
+function pegDropArt(id: string): string {
+  // Vertical pegboard: ball at top, peg grid, slots with multipliers at bottom
+  const bg = `<rect width="160" height="100" fill="#16082a"/>`;
+
+  // pegs: 6 rows, staggered, in central area
+  const pegs: string[] = [];
+  const pegRowsTop = 24;
+  const pegRowGap = 9;
+  const pegColGap = 14;
+  for (let r = 0; r < 6; r++) {
+    const y = pegRowsTop + r * pegRowGap;
+    const even = r % 2 === 0;
+    const cols = even ? 7 : 6;
+    const offset = even ? 0 : pegColGap / 2;
+    const totalW = (cols - 1) * pegColGap;
+    const startX = 80 - totalW / 2 + offset;
+    for (let c = 0; c < cols; c++) {
+      const x = startX + c * pegColGap;
+      pegs.push(`<circle cx="${x}" cy="${y}" r="1.6" fill="#ffffff" filter="url(#glow-${id})"/>`);
+    }
+  }
+
+  // ball trail (zigzag bouncing down)
+  const trail = `<polyline points="80,12 76,28 84,38 78,48 86,58 82,72"
+    fill="none" stroke="#ffd84d" stroke-width="1" stroke-dasharray="2,2"
+    stroke-opacity="0.55" filter="url(#glow-${id})"/>`;
+
+  // ball at top
+  const ball = `<circle cx="80" cy="12" r="3.4" fill="#ffd84d" filter="url(#glow2-${id})"/>
+  <circle cx="79" cy="11" r="1.2" fill="#fff7c4"/>`;
+
+  // slot row at bottom (5 slots visible scaled)
+  const slots: string[] = [];
+  const slotColors = ["#ff44ff", "#ff9933", "#88e1ff", "#ff9933", "#ff44ff"];
+  const slotMults = ["25x", "5x", "2x", "5x", "25x"];
+  const slotW = 30;
+  const slotsY = 80;
+  const slotsH = 16;
+  for (let i = 0; i < 5; i++) {
+    const x = 5 + i * slotW;
+    const color = slotColors[i]!;
+    const mult = slotMults[i]!;
+    slots.push(`<rect x="${x}" y="${slotsY}" width="${slotW - 2}" height="${slotsH}" fill="${color}" fill-opacity="0.22" rx="1"/>`);
+    slots.push(`<rect x="${x + 1}" y="${slotsY}" width="${slotW - 4}" height="2" fill="${color}" filter="url(#glow-${id})"/>`);
+    slots.push(`<text x="${x + slotW / 2 - 1}" y="${slotsY + slotsH - 4}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="6" fill="${color}" filter="url(#glow-${id})">${mult}</text>`);
+  }
+
+  // landing flash on jackpot slot
+  const flash = `<circle cx="20" cy="80" r="6" fill="#ff44ff" fill-opacity="0.55" filter="url(#glow2-${id})"/>`;
+
+  return bg + "\n  " + pegs.join("\n  ") + "\n  " + trail + "\n  " + ball + "\n  " + slots.join("\n  ") + "\n  " + flash;
 }
 
 // ---------- public API ----------
