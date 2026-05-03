@@ -233,6 +233,17 @@ export const GAMES: GameEntry[] = [
     orientation: "portrait",
     load: () => import("./peg-drop/index.js"),
   },
+  {
+    id: "pinball",
+    title: "Pinball",
+    tagline: "Tilt. Flip. Score.",
+    palette: { bg: "#0a0a1a", fg: "#e0e0ff", accent: "#ff6ec7" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    orientation: "portrait",
+    load: () => import("./pinball/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

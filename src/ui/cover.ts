@@ -973,6 +973,7 @@ function artBody(entry: GameEntry): string {
       case "star-void": return starVoidArt(id);
       case "drop-stack": return dropStackArt(id);
       case "peg-drop": return pegDropArt(id);
+      case "pinball": return pinballArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1723,6 +1724,54 @@ function pegDropArt(id: string): string {
   const flash = `<circle cx="20" cy="80" r="6" fill="#ff44ff" fill-opacity="0.55" filter="url(#glow2-${id})"/>`;
 
   return bg + "\n  " + pegs.join("\n  ") + "\n  " + trail + "\n  " + ball + "\n  " + slots.join("\n  ") + "\n  " + flash;
+}
+
+function pinballArt(id: string): string {
+  // Vertical pinball field: top arc, 3 bumpers, 2 angled flippers, ball, slope guides
+  const bg = `<rect width="160" height="100" fill="#0a0a1a"/>`;
+
+  // top arc (curved playfield top)
+  const arc = `<path d="M 22 18 Q 80 4 138 18" fill="none" stroke="#2a2a55" stroke-width="3"/>
+  <path d="M 22 18 Q 80 4 138 18" fill="none" stroke="#ff6ec7" stroke-width="0.8" stroke-opacity="0.6"/>`;
+
+  // side rails
+  const rails = `<rect x="18" y="18" width="3" height="62" fill="#2a2a55"/>
+  <rect x="139" y="18" width="3" height="62" fill="#2a2a55"/>`;
+
+  // bumpers
+  const bumper = (cx: number, cy: number, r: number) => `
+    <circle cx="${cx}" cy="${cy}" r="${r + 1}" fill="#1a1a3a"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="#ff6ec7" filter="url(#glow-${id})"/>
+    <circle cx="${cx - 1}" cy="${cy - 2}" r="${r * 0.5}" fill="#ffd0eb"/>
+    <circle cx="${cx}" cy="${cy}" r="${r * 0.2}" fill="#ff6ec7"/>
+  `;
+  const bumpers = [
+    bumper(48, 36, 9),
+    bumper(80, 28, 10),
+    bumper(112, 36, 9),
+  ].join("\n  ");
+
+  // slope guides
+  const slopes = `
+    <line x1="22" y1="65" x2="58" y2="80" stroke="#3a3a66" stroke-width="4" stroke-linecap="round"/>
+    <line x1="138" y1="65" x2="102" y2="80" stroke="#3a3a66" stroke-width="4" stroke-linecap="round"/>
+    <line x1="22" y1="65" x2="58" y2="80" stroke="#88e1ff" stroke-width="0.6" stroke-opacity="0.6"/>
+    <line x1="138" y1="65" x2="102" y2="80" stroke="#88e1ff" stroke-width="0.6" stroke-opacity="0.6"/>
+  `;
+
+  // flippers (angled)
+  const flippers = `
+    <line x1="58" y1="80" x2="78" y2="89" stroke="#88e1ff" stroke-width="5" stroke-linecap="round" filter="url(#glow-${id})"/>
+    <line x1="102" y1="80" x2="82" y2="89" stroke="#88e1ff" stroke-width="5" stroke-linecap="round" filter="url(#glow-${id})"/>
+    <circle cx="58" cy="80" r="1.6" fill="#888aaf"/>
+    <circle cx="102" cy="80" r="1.6" fill="#888aaf"/>
+  `;
+
+  // ball
+  const ball = `<circle cx="62" cy="58" r="3.2" fill="#cfd6ff" filter="url(#glow2-${id})"/>
+  <circle cx="61" cy="57" r="1.1" fill="#ffffff"/>`;
+
+  return bg + "\n  " + arc + "\n  " + rails + "\n  " + bumpers + "\n  " + slopes + "\n  " + flippers + "\n  " + ball;
 }
 
 // ---------- public API ----------
