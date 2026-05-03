@@ -1,7 +1,9 @@
-// Pinball — vertical pinball table with 2 flippers and 3 bumpers.
+// Pinball — vertical pinball table with plunger lane, 5 bumpers, 4 slingshots,
+// 2 flippers, funnel walls and top corner guides.
 // Tap left/right halves of the field to control flippers. Multitouch.
+// Right-side hold while ball is in the plunger lane charges the launcher.
 // Keyboard: ←/Z left flipper, →// right flipper.
-// 3 lives. Ball drains between flippers. Bumpers: +100 with elastic kick.
+// 3 lives. Ball drains between flippers.
 //
 // Stack: Matter.js standalone for physics, Canvas2D for paint. No assets.
 
@@ -17,7 +19,29 @@ const DESIGN_H = 640;
 const WALL_T = 14;
 const TOP_Y = 18;
 const FIELD_BOTTOM_Y = 620;
-const SIDE_WALL_BOTTOM_Y = 545;
+const SIDE_WALL_BOTTOM_Y = 460;
+
+// plunger lane (right side)
+const FIELD_RIGHT_X = 302;            // separator inner edge — right edge of playfield
+const PLUNGER_SEPARATOR_THICK = 4;
+const PLUNGER_SEPARATOR_TOP_Y = 90;
+const PLUNGER_SEPARATOR_BOT_Y = 460;
+const PLUNGER_SPAWN_X = 324;
+const PLUNGER_SPAWN_Y = 555;
+const PLUNGER_FLOOR_Y = 600;
+const PLUNGER_FLOOR_THICK = 6;
+// slopes from upper-left to lower-right above the plunger lane: a ball going
+// up the lane reflects off it leftward into the playfield.
+const PLUNGER_TOP_DEFLECTOR_FROM = { x: 250, y: 30 };
+const PLUNGER_TOP_DEFLECTOR_TO   = { x: 346, y: 78 };
+const PLUNGER_MAX_CHARGE_MS = 1200;
+const PLUNGER_MIN_LAUNCH_VEL = 8;
+const PLUNGER_MAX_LAUNCH_VEL = 22;
+
+// top corner guide (left)
+const TOP_GUIDE_LEFT_FROM = { x: 14, y: 30 };
+const TOP_GUIDE_LEFT_TO   = { x: 60, y: 70 };
+const TOP_GUIDE_THICK = 6;
 
 // flippers
 const FLIPPER_LEN = 62;
@@ -27,27 +51,50 @@ const RIGHT_PIVOT = { x: 265, y: 575 };
 const FLIPPER_REST_OFFSET = 0.42;     // ~24°
 const FLIPPER_ACTIVE_OFFSET = 0.52;   // ~30° from horizontal upward
 
-// bottom slope guide segments — channel the ball into the flippers
-const SLOPE_LEN = 88;
-const SLOPE_THICK = 14;
-const LEFT_SLOPE_CENTER = { x: 54, y: 550 };
-const RIGHT_SLOPE_CENTER = { x: 306, y: 550 };
-const SLOPE_ANGLE = 0.42;
+// funnel walls — 2 segments per side, channel ball into the flippers
+interface SegmentDef { from: { x: number; y: number }; to: { x: number; y: number }; thick: number; }
+const LEFT_FUNNEL_1: SegmentDef  = { from: { x: 14,  y: 460 }, to: { x: 50,  y: 510 }, thick: 12 };
+const LEFT_FUNNEL_2: SegmentDef  = { from: { x: 50,  y: 510 }, to: { x: 95,  y: 575 }, thick: 10 };
+const RIGHT_FUNNEL_1: SegmentDef = { from: { x: 302, y: 460 }, to: { x: 275, y: 510 }, thick: 12 };
+const RIGHT_FUNNEL_2: SegmentDef = { from: { x: 275, y: 510 }, to: { x: 265, y: 575 }, thick: 10 };
 
-// bumpers
+// bumpers — 5 in irregular W in upper third
 interface BumperDef { x: number; y: number; r: number; }
 const BUMPERS: BumperDef[] = [
-  { x: 86,  y: 215, r: 22 },
-  { x: 180, y: 145, r: 24 },
-  { x: 274, y: 215, r: 22 },
+  { x:  60, y: 150, r: 19 },
+  { x: 115, y: 200, r: 17 },
+  { x: 175, y: 130, r: 22 },
+  { x: 235, y: 200, r: 17 },
+  { x: 280, y: 165, r: 18 },
 ];
 const BUMPER_SCORE = 100;
-const BUMPER_FORCE = 0.0028;
+const BUMPER_FORCE = 0.0030;
+const BUMPER_FLASH_MS = 150;
+
+// slingshots — 2 per side, downward-pointing triangles
+interface SlingshotDef {
+  cx: number; cy: number;
+  verts: Array<{ x: number; y: number }>;  // relative to center
+}
+const SLINGSHOTS: SlingshotDef[] = [
+  // Left upper — apex pointing right (kicks ball into field)
+  { cx: 32, cy: 360, verts: [{ x: -10, y: -22 }, { x: -10, y: 22 }, { x: 16, y: 0 }] },
+  // Left lower — apex pointing down-right toward flipper
+  { cx: 62, cy: 480, verts: [{ x: -22, y: -10 }, { x: 22, y: -10 }, { x: 18, y: 18 }] },
+  // Right upper — apex pointing left
+  { cx: 268, cy: 360, verts: [{ x: 10, y: -22 }, { x: 10, y: 22 }, { x: -16, y: 0 }] },
+  // Right lower — apex pointing down-left toward flipper
+  { cx: 240, cy: 480, verts: [{ x: -22, y: -10 }, { x: 22, y: -10 }, { x: -18, y: 18 }] },
+];
+const SLINGSHOT_SCORE = 50;
+const SLINGSHOT_FORCE = 0.0034;
+const SLINGSHOT_FLASH_MS = 150;
 
 // ball
 const BALL_R = 9;
 const LIVES_INIT = 3;
 const DRAIN_Y = FIELD_BOTTOM_Y + 28;
+const BALL_TRAIL_LEN = 6;
 
 // flipper category for collision filter (so flippers don't snag on slope)
 const CAT_DEFAULT = 0x0001;
@@ -274,26 +321,60 @@ export function mount(container: HTMLElement): () => void {
   engine.velocityIterations = 6;
   const world = engine.world;
 
+  // helper: rotated rectangle from two world endpoints
+  function segmentBody(seg: SegmentDef, label: string): Matter.Body {
+    const dx = seg.to.x - seg.from.x;
+    const dy = seg.to.y - seg.from.y;
+    const len = Math.hypot(dx, dy);
+    const cx = (seg.from.x + seg.to.x) / 2;
+    const cy = (seg.from.y + seg.to.y) / 2;
+    const angle = Math.atan2(dy, dx);
+    return Matter.Bodies.rectangle(cx, cy, len, seg.thick, {
+      isStatic: true,
+      angle,
+      chamfer: { radius: 3 },
+      label,
+    });
+  }
+
   // walls
   const topWall = Matter.Bodies.rectangle(DESIGN_W / 2, TOP_Y / 2, DESIGN_W, TOP_Y, { isStatic: true, label: "wall" });
+  // left side wall: from top to top of left funnel
   const leftWall = Matter.Bodies.rectangle(WALL_T / 2, (TOP_Y + SIDE_WALL_BOTTOM_Y) / 2, WALL_T, SIDE_WALL_BOTTOM_Y - TOP_Y, { isStatic: true, label: "wall" });
-  const rightWall = Matter.Bodies.rectangle(DESIGN_W - WALL_T / 2, (TOP_Y + SIDE_WALL_BOTTOM_Y) / 2, WALL_T, SIDE_WALL_BOTTOM_Y - TOP_Y, { isStatic: true, label: "wall" });
-  Matter.World.add(world, [topWall, leftWall, rightWall]);
+  // right outer wall: full height to enclose plunger lane
+  const rightWall = Matter.Bodies.rectangle(DESIGN_W - WALL_T / 2, (TOP_Y + FIELD_BOTTOM_Y) / 2, WALL_T, FIELD_BOTTOM_Y - TOP_Y, { isStatic: true, label: "wall" });
+  // plunger separator: vertical wall between playfield and plunger lane
+  const plungerSeparator = Matter.Bodies.rectangle(
+    FIELD_RIGHT_X + PLUNGER_SEPARATOR_THICK / 2,
+    (PLUNGER_SEPARATOR_TOP_Y + PLUNGER_SEPARATOR_BOT_Y) / 2,
+    PLUNGER_SEPARATOR_THICK,
+    PLUNGER_SEPARATOR_BOT_Y - PLUNGER_SEPARATOR_TOP_Y,
+    { isStatic: true, label: "wall" },
+  );
+  // plunger floor: closes the bottom of the lane so the ball doesn't escape
+  const plungerFloor = Matter.Bodies.rectangle(
+    (FIELD_RIGHT_X + DESIGN_W - WALL_T) / 2,
+    PLUNGER_FLOOR_Y + PLUNGER_FLOOR_THICK / 2,
+    DESIGN_W - WALL_T - FIELD_RIGHT_X,
+    PLUNGER_FLOOR_THICK,
+    { isStatic: true, label: "wall" },
+  );
+  Matter.World.add(world, [topWall, leftWall, rightWall, plungerSeparator, plungerFloor]);
 
-  // bottom slope guides (rotated rectangles)
-  const leftSlope = Matter.Bodies.rectangle(LEFT_SLOPE_CENTER.x, LEFT_SLOPE_CENTER.y, SLOPE_LEN, SLOPE_THICK, {
-    isStatic: true,
-    angle: SLOPE_ANGLE,
-    chamfer: { radius: 3 },
-    label: "slope",
-  });
-  const rightSlope = Matter.Bodies.rectangle(RIGHT_SLOPE_CENTER.x, RIGHT_SLOPE_CENTER.y, SLOPE_LEN, SLOPE_THICK, {
-    isStatic: true,
-    angle: -SLOPE_ANGLE,
-    chamfer: { radius: 3 },
-    label: "slope",
-  });
-  Matter.World.add(world, [leftSlope, rightSlope]);
+  // top corner guide (left) and plunger top deflector (right)
+  const topGuideLeft = segmentBody({ from: TOP_GUIDE_LEFT_FROM, to: TOP_GUIDE_LEFT_TO, thick: TOP_GUIDE_THICK }, "wall");
+  const plungerTopDeflector = segmentBody(
+    { from: PLUNGER_TOP_DEFLECTOR_FROM, to: PLUNGER_TOP_DEFLECTOR_TO, thick: TOP_GUIDE_THICK },
+    "wall",
+  );
+  Matter.World.add(world, [topGuideLeft, plungerTopDeflector]);
+
+  // funnel segments (2 per side)
+  const leftFunnel1  = segmentBody(LEFT_FUNNEL_1,  "funnel");
+  const leftFunnel2  = segmentBody(LEFT_FUNNEL_2,  "funnel");
+  const rightFunnel1 = segmentBody(RIGHT_FUNNEL_1, "funnel");
+  const rightFunnel2 = segmentBody(RIGHT_FUNNEL_2, "funnel");
+  Matter.World.add(world, [leftFunnel1, leftFunnel2, rightFunnel1, rightFunnel2]);
 
   // bumpers
   const bumperBodies: Matter.Body[] = BUMPERS.map((b) =>
@@ -305,6 +386,20 @@ export function mount(container: HTMLElement): () => void {
     }),
   );
   Matter.World.add(world, bumperBodies);
+
+  // slingshots — triangular static bumpers above flippers
+  const slingshotBodies: Matter.Body[] = SLINGSHOTS.map((s) => {
+    const verts = s.verts.map((v) => ({ x: s.cx + v.x, y: s.cy + v.y }));
+    const body = Matter.Bodies.fromVertices(s.cx, s.cy, [verts], {
+      isStatic: true,
+      restitution: 1.1,
+      friction: 0.02,
+      label: "slingshot",
+    });
+    return body;
+  });
+  Matter.World.add(world, slingshotBodies);
+  const slingshotFlash = new Map<Matter.Body, number>();
 
   // flippers
   function makeFlipper(isLeft: boolean): Flipper {
@@ -355,11 +450,20 @@ export function mount(container: HTMLElement): () => void {
   // ─── ball ───────────────────────────────────────────────────────────────────
   let ballBody: Matter.Body | null = null;
   let ballRespawnPending = false;
+  const ballTrail: Array<{ x: number; y: number }> = [];
+
+  // plunger state
+  let awaitingPlunge = false;
+  let plungerCharging = false;
+  let plungerChargeStart = 0;
+
+  function plungerCharge(now: number): number {
+    if (!plungerCharging) return 0;
+    return Math.min((now - plungerChargeStart) / PLUNGER_MAX_CHARGE_MS, 1);
+  }
 
   function spawnBall(): void {
-    const x = 80 + Math.random() * (DESIGN_W - 160);
-    const y = 60;
-    const b = Matter.Bodies.circle(x, y, BALL_R, {
+    const b = Matter.Bodies.circle(PLUNGER_SPAWN_X, PLUNGER_SPAWN_Y, BALL_R, {
       restitution: 0.55,
       friction: 0.01,
       frictionAir: 0.001,
@@ -368,9 +472,11 @@ export function mount(container: HTMLElement): () => void {
       slop: 0.01,
       collisionFilter: { category: CAT_DEFAULT, mask: 0xFFFF },
     });
-    Matter.Body.setVelocity(b, { x: (Math.random() - 0.5) * 1.2, y: 0.4 });
+    Matter.Body.setVelocity(b, { x: 0, y: 0 });
     Matter.World.add(world, b);
     ballBody = b;
+    ballTrail.length = 0;
+    awaitingPlunge = true;
   }
 
   // ─── state ──────────────────────────────────────────────────────────────────
@@ -427,6 +533,15 @@ export function mount(container: HTMLElement): () => void {
   }
 
   // ─── collisions ─────────────────────────────────────────────────────────────
+  function bumpScore(points: number): void {
+    score += points;
+    scoreEl.textContent = String(score);
+    if (score > best) {
+      best = score;
+      bestEl.textContent = `BEST ${best}`;
+    }
+  }
+
   Matter.Events.on(engine, "collisionStart", (event) => {
     for (const pair of event.pairs) {
       const a = pair.bodyA;
@@ -442,22 +557,32 @@ export function mount(container: HTMLElement): () => void {
           x: (dx / len) * BUMPER_FORCE,
           y: (dy / len) * BUMPER_FORCE,
         });
-        score += BUMPER_SCORE;
-        scoreEl.textContent = String(score);
-        if (score > best) {
-          best = score;
-          bestEl.textContent = `BEST ${best}`;
-        }
+        bumpScore(BUMPER_SCORE);
         spawnHitParticles(other.position.x, other.position.y, "#ff6ec7", 14);
         addShake(4, 200);
         playSfx("bounce");
-        if (navigator.vibrate) navigator.vibrate(30);
+        if (navigator.vibrate) navigator.vibrate(20);
         bumperFlash.set(other, performance.now());
         showPopup(other.position.x, other.position.y - 18, `+${BUMPER_SCORE}`, "#ff6ec7");
+      } else if (other.label === "slingshot") {
+        // lateral kick: push ball outward (+ slight upward bias)
+        const dx = ball.position.x - other.position.x;
+        const dy = ball.position.y - other.position.y - 4;
+        const len = Math.hypot(dx, dy) || 1;
+        Matter.Body.applyForce(ball, ball.position, {
+          x: (dx / len) * SLINGSHOT_FORCE,
+          y: (dy / len) * SLINGSHOT_FORCE,
+        });
+        bumpScore(SLINGSHOT_SCORE);
+        spawnHitParticles(other.position.x, other.position.y, "#88e1ff", 10);
+        addShake(3, 160);
+        playSfx("hit");
+        if (navigator.vibrate) navigator.vibrate(40);
+        slingshotFlash.set(other, performance.now());
+        showPopup(other.position.x, other.position.y - 14, `+${SLINGSHOT_SCORE}`, "#88e1ff");
       } else if (other.label === "flipper") {
         playSfx("tap");
-      } else if (other.label === "wall" || other.label === "slope") {
-        // soft tick
+      } else if (other.label === "wall" || other.label === "funnel") {
         if (Math.abs(ball.velocity.x) + Math.abs(ball.velocity.y) > 6) {
           playSfx("hit");
         }
@@ -466,7 +591,9 @@ export function mount(container: HTMLElement): () => void {
   });
 
   // ─── input ──────────────────────────────────────────────────────────────────
-  const pointers = new Map<number, "left" | "right">();
+  type PointerRole = "flipper" | "plunger";
+  interface PointerInfo { side: "left" | "right"; role: PointerRole; chargeStart: number; }
+  const pointers = new Map<number, PointerInfo>();
 
   function pointerSide(e: PointerEvent): "left" | "right" {
     const rect = canvas.getBoundingClientRect();
@@ -477,7 +604,8 @@ export function mount(container: HTMLElement): () => void {
     let leftHeld = false;
     let rightHeld = false;
     for (const v of pointers.values()) {
-      if (v === "left") leftHeld = true;
+      if (v.role !== "flipper") continue;
+      if (v.side === "left") leftHeld = true;
       else rightHeld = true;
     }
     leftFlipper.active = leftHeld || keyLeft;
@@ -487,11 +615,32 @@ export function mount(container: HTMLElement): () => void {
   function onPointerDown(e: PointerEvent): void {
     if (dead) return;
     const side = pointerSide(e);
-    pointers.set(e.pointerId, side);
+    if (awaitingPlunge && side === "right") {
+      const now = performance.now();
+      pointers.set(e.pointerId, { side, role: "plunger", chargeStart: now });
+      plungerCharging = true;
+      plungerChargeStart = now;
+      return;
+    }
+    pointers.set(e.pointerId, { side, role: "flipper", chargeStart: 0 });
     recomputeFlipperState();
   }
   function onPointerUp(e: PointerEvent): void {
+    const info = pointers.get(e.pointerId);
     pointers.delete(e.pointerId);
+    if (!info) return;
+    if (info.role === "plunger") {
+      plungerCharging = false;
+      if (awaitingPlunge && ballBody) {
+        const charge = Math.min((performance.now() - info.chargeStart) / PLUNGER_MAX_CHARGE_MS, 1);
+        const vy = -(PLUNGER_MIN_LAUNCH_VEL + charge * (PLUNGER_MAX_LAUNCH_VEL - PLUNGER_MIN_LAUNCH_VEL));
+        Matter.Body.setVelocity(ballBody, { x: 0, y: vy });
+        awaitingPlunge = false;
+        playSfx("shoot");
+        if (navigator.vibrate) navigator.vibrate(15 + Math.round(charge * 25));
+      }
+      return;
+    }
     recomputeFlipperState();
   }
 
@@ -562,49 +711,94 @@ export function mount(container: HTMLElement): () => void {
     ctx.fillStyle = "#2a2a55";
     // top
     ctx.fillRect(0, 0, DESIGN_W, TOP_Y);
-    // sides
+    // left side: only down to where the funnel starts
     ctx.fillRect(0, TOP_Y, WALL_T, SIDE_WALL_BOTTOM_Y - TOP_Y);
-    ctx.fillRect(DESIGN_W - WALL_T, TOP_Y, WALL_T, SIDE_WALL_BOTTOM_Y - TOP_Y);
-    // accent line
+    // right side: full height (encloses plunger lane)
+    ctx.fillRect(DESIGN_W - WALL_T, TOP_Y, WALL_T, FIELD_BOTTOM_Y - TOP_Y);
+    // accent line under top wall
     ctx.fillStyle = "#ff6ec7";
     ctx.fillRect(WALL_T, TOP_Y, DESIGN_W - 2 * WALL_T, 2);
   }
 
-  function drawSlope(cx: number, cy: number, angle: number): void {
+  function drawSegment(seg: SegmentDef, fillColor: string, accentColor: string | null = "#88e1ff"): void {
+    const dx = seg.to.x - seg.from.x;
+    const dy = seg.to.y - seg.from.y;
+    const len = Math.hypot(dx, dy);
+    const cx = (seg.from.x + seg.to.x) / 2;
+    const cy = (seg.from.y + seg.to.y) / 2;
+    const angle = Math.atan2(dy, dx);
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
-    ctx.fillStyle = "#3a3a66";
-    ctx.fillRect(-SLOPE_LEN / 2, -SLOPE_THICK / 2, SLOPE_LEN, SLOPE_THICK);
-    ctx.fillStyle = "#88e1ff";
-    ctx.globalAlpha = 0.5;
-    ctx.fillRect(-SLOPE_LEN / 2, -SLOPE_THICK / 2, SLOPE_LEN, 2);
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(-len / 2, -seg.thick / 2, len, seg.thick);
+    if (accentColor) {
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = accentColor;
+      ctx.fillRect(-len / 2, -seg.thick / 2, len, 2);
+    }
+    ctx.restore();
+  }
+
+  function drawSlingshot(s: SlingshotDef, body: Matter.Body, now: number): void {
+    const flashTs = slingshotFlash.get(body) ?? 0;
+    const flashT = Math.max(0, 1 - (now - flashTs) / SLINGSHOT_FLASH_MS);
+    ctx.save();
+    ctx.translate(s.cx, s.cy);
+    // body fill
+    ctx.beginPath();
+    s.verts.forEach((v, i) => {
+      if (i === 0) ctx.moveTo(v.x, v.y);
+      else ctx.lineTo(v.x, v.y);
+    });
+    ctx.closePath();
+    const grd = ctx.createLinearGradient(0, -22, 0, 22);
+    grd.addColorStop(0, flashT > 0 ? "#cdf2ff" : "#9ad6f5");
+    grd.addColorStop(1, "#3a6e9a");
+    ctx.fillStyle = grd;
+    ctx.fill();
+    // outline
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = flashT > 0 ? "#ffffff" : "#88e1ff";
+    ctx.stroke();
+    // inner highlight
+    if (flashT > 0) {
+      ctx.globalAlpha = flashT * 0.7;
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
   }
 
   function drawBumper(b: BumperDef, body: Matter.Body, now: number): void {
     const flashTs = bumperFlash.get(body) ?? 0;
-    const flashT = Math.max(0, 1 - (now - flashTs) / 250);
-    // outer glow
-    if (flashT > 0) {
-      ctx.save();
-      ctx.globalAlpha = flashT * 0.7;
-      ctx.fillStyle = "#ff6ec7";
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r + 8 * flashT, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    const flashT = Math.max(0, 1 - (now - flashTs) / BUMPER_FLASH_MS);
+    // always-on outer halo (radial gradient fading to transparent)
+    const haloR = b.r + 14 + flashT * 10;
+    const halo = ctx.createRadialGradient(b.x, b.y, b.r * 0.6, b.x, b.y, haloR);
+    halo.addColorStop(0, `rgba(255,110,199,${0.30 + flashT * 0.45})`);
+    halo.addColorStop(1, "rgba(255,110,199,0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, haloR, 0, Math.PI * 2);
+    ctx.fill();
     // ring
     ctx.fillStyle = "#1a1a3a";
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.r + 2, 0, Math.PI * 2);
     ctx.fill();
-    // body gradient
+    // body gradient — flash brightens it
     const g = ctx.createRadialGradient(b.x - 4, b.y - 5, 1, b.x, b.y, b.r);
-    g.addColorStop(0, "#ffd0eb");
-    g.addColorStop(0.5, "#ff6ec7");
-    g.addColorStop(1, "#a83a85");
+    if (flashT > 0) {
+      g.addColorStop(0, "#ffffff");
+      g.addColorStop(0.45, "#ffb0dc");
+      g.addColorStop(1, "#c75aa0");
+    } else {
+      g.addColorStop(0, "#ffd0eb");
+      g.addColorStop(0.5, "#ff6ec7");
+      g.addColorStop(1, "#a83a85");
+    }
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
@@ -617,7 +811,7 @@ export function mount(container: HTMLElement): () => void {
     ctx.fill();
     ctx.globalAlpha = 1;
     // tiny core dot
-    ctx.fillStyle = "#ff6ec7";
+    ctx.fillStyle = flashT > 0 ? "#ffffff" : "#ff6ec7";
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.r * 0.18, 0, Math.PI * 2);
     ctx.fill();
@@ -632,9 +826,15 @@ export function mount(container: HTMLElement): () => void {
     const w = FLIPPER_LEN;
     const h = FLIPPER_THICK;
     const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
-    g.addColorStop(0, "#ddddff");
-    g.addColorStop(0.5, "#88e1ff");
-    g.addColorStop(1, "#3a6e9a");
+    if (f.active) {
+      g.addColorStop(0, "#ffd6f1");
+      g.addColorStop(0.5, "#ff95d8");
+      g.addColorStop(1, "#a83a85");
+    } else {
+      g.addColorStop(0, "#ddddff");
+      g.addColorStop(0.5, "#88e1ff");
+      g.addColorStop(1, "#3a6e9a");
+    }
     ctx.fillStyle = g;
     ctx.beginPath();
     if (typeof ctx.roundRect === "function") {
@@ -645,7 +845,7 @@ export function mount(container: HTMLElement): () => void {
     ctx.fill();
     // tip cap
     const tipX = f.isLeft ? w / 2 - 4 : -w / 2 + 4;
-    ctx.fillStyle = "#ff6ec7";
+    ctx.fillStyle = f.active ? "#ffffff" : "#ff6ec7";
     ctx.beginPath();
     ctx.arc(tipX, 0, h / 2 - 2, 0, Math.PI * 2);
     ctx.fill();
@@ -655,6 +855,23 @@ export function mount(container: HTMLElement): () => void {
     ctx.beginPath();
     ctx.arc(f.pivot.x, f.pivot.y, 3, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  function drawBallTrail(): void {
+    const n = ballTrail.length;
+    if (n === 0) return;
+    for (let i = 0; i < n; i++) {
+      const p = ballTrail[i]!;
+      const t = (i + 1) / n;             // newest = highest t (close to 1)
+      const r = BALL_R * (0.4 + 0.5 * t);
+      ctx.save();
+      ctx.globalAlpha = 0.08 + 0.32 * t;
+      ctx.fillStyle = "#cfd6ff";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   function drawBall(): void {
@@ -680,6 +897,59 @@ export function mount(container: HTMLElement): () => void {
     ctx.beginPath();
     ctx.ellipse(x - BALL_R * 0.35, y - BALL_R * 0.4, BALL_R * 0.32, BALL_R * 0.18, -0.4, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  function drawPlungerLane(now: number): void {
+    // separator wall
+    ctx.fillStyle = "#2a2a55";
+    ctx.fillRect(FIELD_RIGHT_X, PLUNGER_SEPARATOR_TOP_Y, PLUNGER_SEPARATOR_THICK, PLUNGER_SEPARATOR_BOT_Y - PLUNGER_SEPARATOR_TOP_Y);
+    // plunger floor
+    ctx.fillStyle = "#2a2a55";
+    ctx.fillRect(FIELD_RIGHT_X, PLUNGER_FLOOR_Y, DESIGN_W - WALL_T - FIELD_RIGHT_X, PLUNGER_FLOOR_THICK);
+    // top deflector
+    drawSegment({ from: PLUNGER_TOP_DEFLECTOR_FROM, to: PLUNGER_TOP_DEFLECTOR_TO, thick: TOP_GUIDE_THICK }, "#3a3a66", "#88e1ff");
+    // lane background hint
+    ctx.fillStyle = "rgba(136,225,255,0.04)";
+    ctx.fillRect(FIELD_RIGHT_X + PLUNGER_SEPARATOR_THICK, PLUNGER_SEPARATOR_TOP_Y, DESIGN_W - WALL_T - FIELD_RIGHT_X - PLUNGER_SEPARATOR_THICK, PLUNGER_FLOOR_Y - PLUNGER_SEPARATOR_TOP_Y);
+
+    // plunger pad and charge bar
+    const charge = plungerCharge(now);
+    const padX = PLUNGER_SPAWN_X - 10;
+    const padW = 20;
+    const padBaseY = PLUNGER_FLOOR_Y - 4;
+    const padPushed = padBaseY + 16 + charge * 18;
+    // shaft
+    ctx.fillStyle = "#3a3a66";
+    ctx.fillRect(padX + 4, padPushed - 50, padW - 8, 50);
+    // pad cap
+    ctx.fillStyle = awaitingPlunge ? "#ff6ec7" : "#5a5a8a";
+    ctx.fillRect(padX, padPushed, padW, 6);
+    // charge bar (vertical)
+    if (awaitingPlunge) {
+      const barX = DESIGN_W - WALL_T - 8;
+      const barY1 = PLUNGER_FLOOR_Y - 6;
+      const barH = 100;
+      // bg
+      ctx.fillStyle = "rgba(255,255,255,0.06)";
+      ctx.fillRect(barX, barY1 - barH, 4, barH);
+      // fill
+      const fillH = barH * charge;
+      const fillG = ctx.createLinearGradient(0, barY1 - fillH, 0, barY1);
+      fillG.addColorStop(0, "#ff6ec7");
+      fillG.addColorStop(1, "#88e1ff");
+      ctx.fillStyle = fillG;
+      ctx.fillRect(barX, barY1 - fillH, 4, fillH);
+    }
+    // hint text on awaiting
+    if (awaitingPlunge && !plungerCharging) {
+      ctx.save();
+      ctx.fillStyle = "rgba(255,110,199,0.6)";
+      ctx.font = "bold 9px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("HOLD →", PLUNGER_SPAWN_X, PLUNGER_FLOOR_Y - 70);
+      ctx.fillText("LAUNCH", PLUNGER_SPAWN_X, PLUNGER_FLOOR_Y - 58);
+      ctx.restore();
+    }
   }
 
   function drawParticles(): void {
@@ -709,10 +979,11 @@ export function mount(container: HTMLElement): () => void {
       updateFlipper(rightFlipper);
       Matter.Engine.update(engine, dt);
 
-      // drain detection
-      if (ballBody && ballBody.position.y > DRAIN_Y && !ballRespawnPending) {
+      // drain detection — only if ball drained through the playfield (not in plunger lane)
+      if (ballBody && ballBody.position.y > DRAIN_Y && ballBody.position.x < FIELD_RIGHT_X && !ballRespawnPending) {
         Matter.World.remove(world, ballBody);
         ballBody = null;
+        ballTrail.length = 0;
         lives--;
         livesEl.textContent = String(lives);
         if (lives <= 0) {
@@ -720,7 +991,7 @@ export function mount(container: HTMLElement): () => void {
         } else {
           ballRespawnPending = true;
           playSfx("error");
-          if (navigator.vibrate) navigator.vibrate(60);
+          if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
           window.setTimeout(() => {
             if (destroyed || dead) return;
             spawnBall();
@@ -749,7 +1020,16 @@ export function mount(container: HTMLElement): () => void {
 
     // bumper flash decay (handled per-draw via timestamps; just clean stale entries)
     for (const [body, ts] of bumperFlash) {
-      if (now - ts > 400) bumperFlash.delete(body);
+      if (now - ts > BUMPER_FLASH_MS + 100) bumperFlash.delete(body);
+    }
+    for (const [body, ts] of slingshotFlash) {
+      if (now - ts > SLINGSHOT_FLASH_MS + 100) slingshotFlash.delete(body);
+    }
+
+    // accumulate ball trail (only when ball is moving meaningfully)
+    if (ballBody && !awaitingPlunge) {
+      ballTrail.push({ x: ballBody.position.x, y: ballBody.position.y });
+      if (ballTrail.length > BALL_TRAIL_LEN) ballTrail.shift();
     }
 
     // ── render ──
@@ -774,24 +1054,35 @@ export function mount(container: HTMLElement): () => void {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, DESIGN_W, DESIGN_H);
 
-    // playfield grid hint
+    // playfield grid hint (only inside playfield, not plunger lane)
     ctx.strokeStyle = "rgba(136,225,255,0.05)";
     ctx.lineWidth = 0.5;
     for (let y = 60; y < FIELD_BOTTOM_Y; y += 40) {
       ctx.beginPath();
       ctx.moveTo(WALL_T, y);
-      ctx.lineTo(DESIGN_W - WALL_T, y);
+      ctx.lineTo(FIELD_RIGHT_X, y);
       ctx.stroke();
     }
 
     drawWalls();
-    drawSlope(LEFT_SLOPE_CENTER.x, LEFT_SLOPE_CENTER.y, SLOPE_ANGLE);
-    drawSlope(RIGHT_SLOPE_CENTER.x, RIGHT_SLOPE_CENTER.y, -SLOPE_ANGLE);
+    // top corner guide (left)
+    drawSegment({ from: TOP_GUIDE_LEFT_FROM, to: TOP_GUIDE_LEFT_TO, thick: TOP_GUIDE_THICK }, "#3a3a66", "#88e1ff");
+    // funnel (2 segments per side)
+    drawSegment(LEFT_FUNNEL_1,  "#3a3a66", "#88e1ff");
+    drawSegment(LEFT_FUNNEL_2,  "#3a3a66", "#88e1ff");
+    drawSegment(RIGHT_FUNNEL_1, "#3a3a66", "#88e1ff");
+    drawSegment(RIGHT_FUNNEL_2, "#3a3a66", "#88e1ff");
 
+    // plunger lane (separator + deflector + plunger pad + charge bar)
+    drawPlungerLane(now);
+
+    // slingshots before bumpers (slingshots are lower-z visually)
+    SLINGSHOTS.forEach((s, i) => drawSlingshot(s, slingshotBodies[i]!, now));
     BUMPERS.forEach((b, i) => drawBumper(b, bumperBodies[i]!, now));
 
     drawFlipper(leftFlipper);
     drawFlipper(rightFlipper);
+    drawBallTrail();
     drawBall();
     drawParticles();
 
@@ -836,6 +1127,8 @@ export function mount(container: HTMLElement): () => void {
     overEl.style.display = "none";
     particles.length = 0;
     bumperFlash.clear();
+    slingshotFlash.clear();
+    ballTrail.length = 0;
     shakeStrength = 0;
     shakeTimer = 0;
     pointers.clear();
@@ -843,6 +1136,8 @@ export function mount(container: HTMLElement): () => void {
     keyRight = false;
     leftFlipper.active = false;
     rightFlipper.active = false;
+    plungerCharging = false;
+    awaitingPlunge = false;
     Matter.Body.setAngle(leftFlipper.body, leftFlipper.restAngle);
     Matter.Body.setAngle(rightFlipper.body, rightFlipper.restAngle);
     spawnBall();
