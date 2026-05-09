@@ -205,8 +205,22 @@
   </div>
 
 <script>
-const SUPABASE_URL  = "https://cqxktssbzfvyxhnvloml.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxeGt0c3NiemZ2eXhobnZsb21sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTEyNzMsImV4cCI6MjA5MjM2NzI3M30.YrgVH-u8524RkXVOH8dkqqlDgW_-nDXQUw_sBBFqAdQ";
+// Local-only admin dashboard. Credentials are stored in localStorage on first run.
+// To reset: localStorage.removeItem("dashboard_supabase_url"); localStorage.removeItem("dashboard_supabase_anon");
+const SUPABASE_URL = localStorage.getItem("dashboard_supabase_url") || (() => {
+  const v = prompt("Supabase project URL (e.g. https://xxx.supabase.co)") || "";
+  if (v) localStorage.setItem("dashboard_supabase_url", v);
+  return v;
+})();
+const SUPABASE_ANON = localStorage.getItem("dashboard_supabase_anon") || (() => {
+  const v = prompt("Supabase anon key (paste from project settings)") || "";
+  if (v) localStorage.setItem("dashboard_supabase_anon", v);
+  return v;
+})();
+if (!SUPABASE_URL || !SUPABASE_ANON) {
+  document.body.innerHTML = "<div style='font:14px monospace;padding:24px;color:#fff;background:#1a0a2e;min-height:100vh'>Missing Supabase URL/anon key. Refresh to enter again.</div>";
+  throw new Error("dashboard: missing credentials");
+}
 
 async function rpc(fn, body = {}) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {

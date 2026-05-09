@@ -11,7 +11,9 @@ tsconfig.tsbuildinfo
 .env.*
 !.env.example
 .claude/scheduled_tasks.lock
+.claude/settings.local.json
+.claude/projects/
 
-# Local admin dashboard (contains embedded anon key — safe, but not built)
-# Only present locally, never served by Vite build because it's in repo root.
+# Local admin dashboard
+# Served as a static page; reads VITE_SUPABASE_* from build-time replacement.
 
