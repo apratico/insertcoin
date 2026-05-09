@@ -1,0 +1,90 @@
+name: New game proposal
+description: Pitch a game to add to the catalogue
+title: "[new game] "
+labels: ["new-game"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [`CONTRIBUTING.md → Adding a new game`](../blob/main/CONTRIBUTING.md#adding-a-new-game-step-by-step) before opening this issue. The catalogue biases toward **short sessions (1–3 min), one-finger controls, high replayability**.
+
+  - type: input
+    id: title
+    attributes:
+      label: Working title
+      description: Original or copyright-safe. Two-word punchy is best.
+    validations:
+      required: true
+
+  - type: input
+    id: id
+    attributes:
+      label: Suggested game id
+      description: kebab-case, unique. Stays the same forever.
+      placeholder: "neon-dash"
+    validations:
+      required: true
+
+  - type: textarea
+    id: pitch
+    attributes:
+      label: One-sentence pitch
+      description: If you can't say it in one sentence, the game is too complex for this catalogue.
+    validations:
+      required: true
+
+  - type: textarea
+    id: mechanic
+    attributes:
+      label: Core mechanic
+      description: What does the player do? What makes them lose?
+    validations:
+      required: true
+
+  - type: textarea
+    id: controls
+    attributes:
+      label: Controls
+      placeholder: "Tap to jump. Swipe down to slide. Air-tap = double jump."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: session
+    attributes:
+      label: Session length
+      options:
+        - "Under 60s"
+        - "1–3 min"
+        - "3–5 min"
+        - "Open-ended"
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References (similar games, art mood)
+      description: Helpful but not required.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I read CONTRIBUTING.md and the game mount contract
+          required: true
+        - label: The title and art idea don't reproduce a copyrighted IP (no Pac-Man, no Tetris colours, etc.)
+          required: true
+        - label: This works one-handed on a phone
+          required: true
+
+  - type: dropdown
+    id: who
+    attributes:
+      label: Who builds it?
+      options:
+        - "I want to build it myself"
+        - "I'm proposing the idea, someone else can build it"
+    validations:
+      required: true

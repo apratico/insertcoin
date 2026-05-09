@@ -1,0 +1,88 @@
+name: Bug report
+description: Something is broken in a game or in the shell
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: game
+    attributes:
+      label: Which game?
+      description: Pick the game id, or "shell" for non-game issues (menu, routing, leaderboard, PWA install).
+      options:
+        - shell
+        - snake
+        - "2048"
+        - minesweeper
+        - sudoku
+        - memory
+        - bubble-shooter
+        - 15puzzle
+        - flappy
+        - tap-rotate
+        - color-match-shooter
+        - one-bullet
+        - chain-blast
+        - crypt-run
+        - brick-buster
+        - gem-cascade
+        - color-flow
+        - block-fit
+        - star-void
+        - drop-stack
+        - peg-drop
+        - neon-dash
+        - tris
+        - dama
+        - connect4
+        - reaction-duel
+        - tap-race
+        - chain-reaction
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: One paragraph. Plain language is fine.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open /#/play/...
+        2. Tap ...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device + browser
+      placeholder: "iPhone 13 / Safari 17, Pixel 7 / Chrome 121, Desktop / Firefox 122..."
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: URL where you saw it
+      placeholder: "https://200lire.pages.dev/#/play/..., or 'localhost'"
+
+  - type: textarea
+    id: extras
+    attributes:
+      label: Console errors / screenshots / video
+      description: Drag screenshots here. Open DevTools → Console and paste any red errors.
