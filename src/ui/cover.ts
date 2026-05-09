@@ -974,6 +974,7 @@ function artBody(entry: GameEntry): string {
       case "drop-stack": return dropStackArt(id);
       case "peg-drop": return pegDropArt(id);
       case "neon-dash": return neonDashArt(id);
+      case "night-treads": return nightTreadsArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1843,6 +1844,127 @@ function neonDashArt(id: string): string {
   const shadow = `<rect x="38" y="66" width="10" height="1.4" fill="#000" fill-opacity="0.45"/>`;
 
   return bg + "\n  " + stars + "\n  " + farSky + "\n  " + midSky + "\n  " + floorBand + "\n  " + gridLines.join("\n  ") + "\n  " + wall + "\n  " + bar + "\n  " + coin + "\n  " + trail + "\n  " + shadow + "\n  " + player;
+}
+
+function nightTreadsArt(id: string): string {
+  // Gothic horror: night sky, full moon, lightning, tank, zombie, werewolf silhouette
+  const bg = `<defs>
+    <linearGradient id="nt-sky-${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#04050f"/>
+      <stop offset="0.55" stop-color="#0a0a25"/>
+      <stop offset="1" stop-color="#1a1638"/>
+    </linearGradient>
+    <radialGradient id="nt-moon-${id}" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#e8e4ff"/>
+      <stop offset="0.7" stop-color="#c8c0e8"/>
+      <stop offset="1" stop-color="#04050f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="100" fill="url(#nt-sky-${id})"/>`;
+
+  // stars
+  const stars = [
+    [12, 8], [28, 12], [42, 6], [70, 14], [94, 8], [118, 16], [136, 6], [148, 12],
+    [20, 24], [56, 22], [82, 28], [106, 24], [130, 28],
+  ].map(([x, y]) => `<rect x="${x}" y="${y}" width="1.4" height="1.4" fill="#dcd9ff" fill-opacity="0.85"/>`).join("\n  ");
+
+  // moon halo + disc
+  const moon = `<g>
+    <circle cx="124" cy="22" r="22" fill="#dcd9ff" fill-opacity="0.18"/>
+    <circle cx="124" cy="22" r="11" fill="url(#nt-moon-${id})"/>
+    <circle cx="124" cy="22" r="11" fill="#e8e4ff"/>
+    <circle cx="120" cy="20" r="2.5" fill="#9aa0c8" fill-opacity="0.6"/>
+    <circle cx="127" cy="24" r="1.6" fill="#9aa0c8" fill-opacity="0.6"/>
+    <circle cx="125" cy="18" r="1.2" fill="#9aa0c8" fill-opacity="0.6"/>
+  </g>`;
+
+  // dark clouds
+  const clouds = `<g fill="#14102a" fill-opacity="0.65">
+    <ellipse cx="40" cy="28" rx="22" ry="6"/>
+    <ellipse cx="56" cy="32" rx="18" ry="5"/>
+    <ellipse cx="100" cy="18" rx="26" ry="6"/>
+    <ellipse cx="116" cy="22" rx="14" ry="4"/>
+  </g>`;
+
+  // lightning bolt
+  const lightning = `<g>
+    <polyline points="84,8 78,28 82,28 76,46" fill="none" stroke="#dffaff" stroke-width="1.4" filter="url(#glow-${id})"/>
+    <polyline points="84,8 78,28 82,28 76,46" fill="none" stroke="#fff" stroke-width="0.6"/>
+  </g>`;
+
+  // mountains silhouette
+  const mountains = `<polygon points="0,72 18,58 32,66 50,52 64,64 82,56 98,68 116,54 134,66 152,58 160,68 160,82 0,82" fill="#0c0a1a"/>`;
+
+  // dead trees
+  const trees = `<g stroke="#06040d" stroke-width="0.8" stroke-linecap="round">
+    <line x1="14" y1="74" x2="14" y2="60"/>
+    <line x1="14" y1="68" x2="10" y2="64"/>
+    <line x1="14" y1="64" x2="18" y2="60"/>
+    <line x1="44" y1="76" x2="44" y2="62"/>
+    <line x1="44" y1="68" x2="40" y2="64"/>
+    <line x1="120" y1="76" x2="120" y2="62"/>
+    <line x1="120" y1="70" x2="124" y2="66"/>
+  </g>`;
+
+  // werewolf howling silhouette on hilltop (left bg)
+  const wolf = `<g fill="#04030a">
+    <rect x="64" y="60" width="10" height="6"/>
+    <rect x="65" y="66" width="2" height="3"/>
+    <rect x="71" y="66" width="2" height="3"/>
+    <rect x="73" y="55" width="3" height="5"/>
+    <rect x="73" y="52" width="1.4" height="3"/>
+    <rect x="75" y="52" width="1.4" height="3"/>
+    <rect x="62" y="58" width="2" height="2"/>
+  </g>
+  <rect x="74.6" y="56" width="0.8" height="0.8" fill="#ff4040"/>`;
+
+  // ground band
+  const ground = `<rect x="0" y="82" width="160" height="18" fill="#0a0612"/>
+  <rect x="0" y="84" width="160" height="2" fill="#1a1430" fill-opacity="0.8"/>`;
+
+  // zombie (right side, walking toward tank)
+  const zombie = `<g>
+    <rect x="118" y="78" width="3" height="5" fill="#3a2a14"/>
+    <rect x="124" y="78" width="3" height="5" fill="#3a2a14"/>
+    <rect x="116" y="68" width="12" height="10" fill="#2a1a08"/>
+    <rect x="116" y="67" width="12" height="2" fill="#3a2a14"/>
+    <rect x="113" y="69" width="3" height="9" fill="#5a7a2a"/>
+    <rect x="128" y="69" width="3" height="9" fill="#5a7a2a"/>
+    <rect x="118" y="60" width="8" height="8" fill="#5a7a2a"/>
+    <rect x="118" y="60" width="8" height="1.4" fill="#3a5a18"/>
+    <rect x="120" y="63" width="1.4" height="1.4" fill="#ff3030"/>
+    <rect x="123.2" y="63" width="1.4" height="1.4" fill="#ff3030"/>
+    <rect x="120.5" y="65.5" width="3" height="1" fill="#1a0a04"/>
+  </g>`;
+
+  // tank (left side, firing)
+  const tank = `<g>
+    <rect x="22" y="78" width="32" height="6" fill="#1a2010"/>
+    <rect x="24" y="80" width="3" height="3" fill="#0a0c08"/>
+    <rect x="29" y="80" width="3" height="3" fill="#0a0c08"/>
+    <rect x="34" y="80" width="3" height="3" fill="#0a0c08"/>
+    <rect x="39" y="80" width="3" height="3" fill="#0a0c08"/>
+    <rect x="44" y="80" width="3" height="3" fill="#0a0c08"/>
+    <rect x="49" y="80" width="3" height="3" fill="#0a0c08"/>
+    <rect x="24" y="68" width="28" height="10" fill="#3a4a22"/>
+    <rect x="28" y="70" width="6" height="4" fill="#2a3a18"/>
+    <rect x="38" y="71" width="8" height="5" fill="#2a3a18"/>
+    <rect x="46" y="69" width="4" height="3" fill="#1a2810"/>
+    <rect x="34" y="64" width="14" height="5" fill="#3a4a22"/>
+    <rect x="48" y="65" width="14" height="3" fill="#2a3014"/>
+  </g>`;
+
+  // muzzle flash
+  const flash = `<g filter="url(#glow2-${id})">
+    <polygon points="62,66 72,64 72,68" fill="#ffd166"/>
+    <circle cx="64" cy="66" r="2.5" fill="#fff5b0"/>
+  </g>`;
+
+  // bullet trail
+  const bulletTrail = `<rect x="78" y="65" width="6" height="2" fill="#ffd166" filter="url(#glow-${id})"/>
+  <rect x="86" y="65" width="3" height="2" fill="#ffe082"/>`;
+
+  return bg + "\n  " + stars + "\n  " + clouds + "\n  " + lightning + "\n  " + moon + "\n  " + mountains + "\n  " + trees + "\n  " + wolf + "\n  " + ground + "\n  " + zombie + "\n  " + tank + "\n  " + flash + "\n  " + bulletTrail;
 }
 
 // ---------- public API ----------

@@ -244,6 +244,17 @@ export const GAMES: GameEntry[] = [
     orientation: "portrait",
     load: () => import("./neon-dash/index.js"),
   },
+  {
+    id: "night-treads",
+    title: "Night Treads",
+    tagline: "Tank vs zombies, by moonlight.",
+    palette: { bg: "#04050f", fg: "#ffffff", accent: "#ffd166" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    orientation: "portrait",
+    load: () => import("./night-treads/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)
