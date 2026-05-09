@@ -122,9 +122,11 @@ function obstacleHit(player: Player, ob: Obstacle, groundY: number): boolean {
     const r = { x: ob.x, y: groundY - 70, w: ob.w, h: ob.h };
     return rectsOverlap(p, r);
   }
-  // gap: only fail if player is on ground level over the gap
+  // gap: only fail if player foot center is over the gap (±3px margin)
   if (ob.kind === "gap") {
-    const overGap = p.x + p.w > ob.x && p.x < ob.x + ob.w;
+    const FOOT_MARGIN = 3;
+    const footX = player.x;
+    const overGap = footX > ob.x + FOOT_MARGIN && footX < ob.x + ob.w - FOOT_MARGIN;
     const onGround = player.y >= groundY - 1 && player.vy >= 0;
     return overGap && onGround;
   }
@@ -732,6 +734,18 @@ export function mount(container: HTMLElement): () => void {
   wrap.addEventListener("pointercancel", () => { downActive = false; });
 
   function onKey(e: KeyboardEvent): void {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (phase === "gameover" && gameoverEl) {
+        gameoverEl.el.remove();
+        gameoverEl = null;
+        restartGame();
+        return;
+      }
+      if (phase === "idle") { startPlaying(); return; }
+      doJump(false);
+      return;
+    }
     if (e.key === " " || e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
       e.preventDefault();
       if (phase === "idle") { startPlaying(); return; }
