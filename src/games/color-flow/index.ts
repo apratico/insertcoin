@@ -54,7 +54,62 @@ function cloneTubes(tubes: Tube[]): Tube[] {
   return tubes.map((t) => [...t]);
 }
 
+// ---------- solver / feasibility check ----------
+
+function encodeState(tubes: Tube[]): string {
+  const code = (c: string): string => String.fromCharCode(48 + COLORS.indexOf(c));
+  const arr = tubes.map((t) => t.map(code).join(""));
+  // Tubes are interchangeable in this puzzle — canonicalize via sort
+  arr.sort();
+  return arr.join("|");
+}
+
+function isSolvable(initial: Tube[], maxStates = 80000): boolean {
+  if (isWon(initial)) return true;
+  const seen = new Set<string>();
+  const stack: Tube[][] = [initial];
+  seen.add(encodeState(initial));
+  while (stack.length > 0 && seen.size < maxStates) {
+    const state = stack.pop()!;
+    if (isWon(state)) return true;
+    for (let i = 0; i < state.length; i++) {
+      for (let j = 0; j < state.length; j++) {
+        if (i === j) continue;
+        if (canPour(state[i]!, state[j]!)) {
+          const next = pourTubes(state, i, j);
+          const key = encodeState(next);
+          if (!seen.has(key)) {
+            seen.add(key);
+            stack.push(next);
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
 function generateLevel(level: number): Tube[] {
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const candidate = generateLevelRaw(level);
+    if (isSolvable(candidate)) return candidate;
+  }
+  // Fallback: solvable-by-construction trivial state
+  // (each color full in its own tube; player just leaves them).
+  // Then re-shuffle with very few moves so it still looks scrambled but stays solvable.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const candidate = generateLevelRaw(Math.max(1, level - 5));
+    if (isSolvable(candidate)) return candidate;
+  }
+  // Last resort: return a trivial-solvable state
+  const { colors, tubes, filled } = getLevelConfig(level);
+  const palette = COLORS.slice(0, colors);
+  const out: Tube[] = palette.map((c) => Array(CAPACITY).fill(c) as string[]);
+  for (let i = filled; i < tubes; i++) out.push([]);
+  return out;
+}
+
+function generateLevelRaw(level: number): Tube[] {
   const { colors, tubes, filled } = getLevelConfig(level);
   const palette = COLORS.slice(0, colors);
 
