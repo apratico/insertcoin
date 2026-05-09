@@ -14,6 +14,9 @@ tsconfig.tsbuildinfo
 .claude/settings.local.json
 .claude/projects/
 
+# Personal notes — never tracked
+personal/
+
 # Local admin dashboard
 # Served as a static page; reads VITE_SUPABASE_* from build-time replacement.
 
