@@ -233,6 +233,17 @@ export const GAMES: GameEntry[] = [
     orientation: "portrait",
     load: () => import("./peg-drop/index.js"),
   },
+  {
+    id: "neon-dash",
+    title: "Neon Dash",
+    tagline: "Run. Jump. Slide.",
+    palette: { bg: "#1a0a2e", fg: "#ffffff", accent: "#ff2d78" },
+    category: "solo",
+    modes: ["solo"],
+    status: "ready",
+    orientation: "portrait",
+    load: () => import("./neon-dash/index.js"),
+  },
 
   // =========================================================
   // COMPAGNIA (2 players, local or remote)

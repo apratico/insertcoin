@@ -973,6 +973,7 @@ function artBody(entry: GameEntry): string {
       case "star-void": return starVoidArt(id);
       case "drop-stack": return dropStackArt(id);
       case "peg-drop": return pegDropArt(id);
+      case "neon-dash": return neonDashArt(id);
       default: return defaultArt(id, entry.palette.accent);
     }
   })();
@@ -1723,6 +1724,125 @@ function pegDropArt(id: string): string {
   const flash = `<circle cx="20" cy="80" r="6" fill="#ff44ff" fill-opacity="0.55" filter="url(#glow2-${id})"/>`;
 
   return bg + "\n  " + pegs.join("\n  ") + "\n  " + trail + "\n  " + ball + "\n  " + slots.join("\n  ") + "\n  " + flash;
+}
+
+function neonDashArt(id: string): string {
+  // Neon synthwave runner: parallax skyline + grid floor + runner mid-jump + obstacles + coin
+  const bg = `<defs>
+    <linearGradient id="nd-sky-${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a0a2e"/>
+      <stop offset="0.55" stop-color="#2d1450"/>
+      <stop offset="1" stop-color="#0f0420"/>
+    </linearGradient>
+    <linearGradient id="nd-floor-${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a1a60" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#0a041a" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="100" fill="url(#nd-sky-${id})"/>`;
+
+  // stars
+  const starPositions = [
+    [12, 10], [28, 18], [44, 8], [60, 22], [78, 14], [96, 12], [112, 24], [128, 10], [146, 20],
+    [20, 32], [50, 38], [82, 30], [120, 36], [142, 44],
+  ];
+  const stars = starPositions.map(([x, y]) => `<rect x="${x}" y="${y}" width="1.4" height="1.4" fill="#c9a0dc" fill-opacity="0.85"/>`).join("\n  ");
+
+  // far skyline (silhouette)
+  const farSky = `<g fill="#e84a8a" fill-opacity="0.18">
+    <rect x="0" y="48" width="14" height="14"/>
+    <rect x="14" y="42" width="10" height="20"/>
+    <rect x="24" y="50" width="12" height="12"/>
+    <rect x="36" y="40" width="8" height="22"/>
+    <rect x="44" y="46" width="14" height="16"/>
+    <rect x="58" y="44" width="10" height="18"/>
+    <rect x="68" y="48" width="12" height="14"/>
+    <rect x="80" y="42" width="9" height="20"/>
+    <rect x="89" y="46" width="13" height="16"/>
+    <rect x="102" y="44" width="11" height="18"/>
+    <rect x="113" y="48" width="14" height="14"/>
+    <rect x="127" y="42" width="9" height="20"/>
+    <rect x="136" y="46" width="12" height="16"/>
+    <rect x="148" y="48" width="12" height="14"/>
+  </g>`;
+
+  // mid skyline (closer / brighter)
+  const midSky = `<g fill="#ff2d78" fill-opacity="0.32">
+    <rect x="-2" y="56" width="16" height="10"/>
+    <rect x="14" y="52" width="10" height="14"/>
+    <rect x="26" y="58" width="14" height="8"/>
+    <rect x="40" y="50" width="9" height="16"/>
+    <rect x="49" y="56" width="13" height="10"/>
+    <rect x="62" y="54" width="10" height="12"/>
+    <rect x="72" y="58" width="14" height="8"/>
+    <rect x="86" y="50" width="9" height="16"/>
+    <rect x="95" y="56" width="13" height="10"/>
+    <rect x="108" y="54" width="11" height="12"/>
+    <rect x="119" y="58" width="14" height="8"/>
+    <rect x="133" y="50" width="9" height="16"/>
+    <rect x="142" y="56" width="14" height="10"/>
+  </g>`;
+
+  // floor band
+  const floorBand = `<rect x="0" y="68" width="160" height="32" fill="url(#nd-floor-${id})"/>
+  <rect x="0" y="66" width="160" height="2" fill="#ff2d78" filter="url(#glow-${id})"/>`;
+
+  // grid floor — perspective lines
+  const gridLines: string[] = [];
+  for (let i = 0; i < 9; i++) {
+    const x = i * 20;
+    gridLines.push(`<line x1="${x}" y1="68" x2="${x + 20}" y2="100" stroke="#e84a8a" stroke-opacity="0.4" stroke-width="0.8"/>`);
+  }
+  for (let i = 1; i <= 4; i++) {
+    const y = 68 + i * 8;
+    gridLines.push(`<line x1="0" y1="${y}" x2="160" y2="${y}" stroke="#ff2d78" stroke-opacity="${0.45 - i * 0.08}" stroke-width="0.7"/>`);
+  }
+
+  // wall obstacle
+  const wall = `<g>
+    <rect x="108" y="48" width="12" height="20" fill="#3a1a60"/>
+    <rect x="108" y="46" width="12" height="2" fill="#00e5ff" filter="url(#glow-${id})"/>
+    <rect x="108" y="48" width="12" height="2" fill="#ff2d78"/>
+    <rect x="110" y="54" width="8" height="0.6" fill="#ff2d78" fill-opacity="0.5"/>
+    <rect x="110" y="58" width="8" height="0.6" fill="#ff2d78" fill-opacity="0.5"/>
+    <rect x="110" y="62" width="8" height="0.6" fill="#ff2d78" fill-opacity="0.5"/>
+  </g>`;
+
+  // floating bar obstacle
+  const bar = `<g>
+    <rect x="130" y="52" width="22" height="6" fill="#1a0a2e" stroke="#00e5ff" stroke-width="0.8" filter="url(#glow-${id})"/>
+    <rect x="132" y="58" width="1.2" height="9" fill="#00e5ff" fill-opacity="0.4"/>
+    <rect x="148.8" y="58" width="1.2" height="9" fill="#00e5ff" fill-opacity="0.4"/>
+  </g>`;
+
+  // coin
+  const coin = `<g filter="url(#glow2-${id})">
+    <ellipse cx="86" cy="42" rx="3.5" ry="4.5" fill="#f5c842"/>
+    <rect x="85.4" y="39" width="1.2" height="6" fill="#fff5c0"/>
+  </g>`;
+
+  // runner mid-jump (player)
+  const player = `<g>
+    <rect x="36" y="40" width="14" height="22" fill="#ff2d78" filter="url(#glow-${id})"/>
+    <rect x="38" y="44" width="10" height="4" fill="#00e5ff"/>
+    <rect x="39" y="45" width="2" height="2" fill="#1a0a2e"/>
+    <rect x="46" y="45" width="2" height="2" fill="#1a0a2e"/>
+    <rect x="37" y="56" width="4" height="6" fill="#c9a0dc"/>
+    <rect x="45" y="55" width="4" height="6" fill="#c9a0dc"/>
+    <rect x="35.5" y="39.5" width="15" height="23" fill="none" stroke="#ffffff" stroke-width="0.6"/>
+  </g>`;
+
+  // motion trail
+  const trail = `<g fill="#ff2d78">
+    <rect x="22" y="58" width="3" height="3" fill-opacity="0.18"/>
+    <rect x="28" y="56" width="3" height="3" fill-opacity="0.3"/>
+    <rect x="32" y="54" width="3" height="3" fill-opacity="0.45"/>
+  </g>`;
+
+  // shadow under player (mid-air = small)
+  const shadow = `<rect x="38" y="66" width="10" height="1.4" fill="#000" fill-opacity="0.45"/>`;
+
+  return bg + "\n  " + stars + "\n  " + farSky + "\n  " + midSky + "\n  " + floorBand + "\n  " + gridLines.join("\n  ") + "\n  " + wall + "\n  " + bar + "\n  " + coin + "\n  " + trail + "\n  " + shadow + "\n  " + player;
 }
 
 // ---------- public API ----------
