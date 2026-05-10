@@ -29,10 +29,10 @@ function genDeviceId(): string {
 async function upsertRemoteProfile(p: ProfileRow): Promise<void> {
   if (!REMOTE_ENABLED || !supabase || !p.deviceId) return;
   try {
-    await supabase.from("profiles").upsert(
-      { device_id: p.deviceId, nickname: p.nickname, updated_at: new Date().toISOString() },
-      { onConflict: "device_id" }
-    );
+    await supabase.rpc("upsert_profile", {
+      p_device_id: p.deviceId,
+      p_nickname: p.nickname,
+    });
   } catch { /* offline-tolerant */ }
 }
 
